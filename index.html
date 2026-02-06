@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drukarka Zebra - Orlen Paczka</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background: #ececec; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); display: inline-block; width: 100%; max-width: 400px; }
+        
+        /* Styl dla inputu */
+        input { 
+            font-size: 1.5rem; 
+            padding: 12px; 
+            width: 90%; 
+            margin-bottom: 15px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        input:focus { border-color: #e63946; outline: none; }
+
+        button { font-size: 1.1rem; padding: 15px; width: 100%; cursor: pointer; border: none; border-radius: 8px; color: white; margin-bottom: 10px; transition: 0.3s; }
+        .btn-print { background-color: #e63946; font-weight: bold; text-transform: uppercase; }
+        .btn-print:active { background-color: #b91d2a; transform: scale(0.98); }
+        
+        #barcode-preview { margin-top: 20px; width: 100%; height: auto; }
+        .status { margin-top: 15px; font-weight: bold; color: #555; height: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2 style="color: #e63946;">ORLEN PACZKA</h2>
+        
+        <input type="text" 
+               id="ean-input" 
+               inputmode="numeric" 
+               pattern="[0-9]*" 
+               placeholder="Wpisz numer EAN" 
+               maxlength="13" 
+               oninput="validateInput(this)">
+
+        <button class="btn-print" onclick="printToZebra()">Drukuj Etykietę</button>
+        <div id="status-msg" class="status">Gotowy</div>
+        
+        <div style="border-top: 1px solid #eee; margin-top: 20px;">
+            <svg id="barcode-preview"></svg>
+        </div>
+    </div>
+
+    <script>
+        // Funkcja blokująca wpisywanie znaków innych niż cyfry
+        function validateInput(input) {
+            // Usuwa wszystko co nie jest cyfrą
+            input.value = input.value.replace(/[^0-9]/g, '');
+            
+            // Automatyczny podgląd przy każdej zmianie
+            if (input.value.length >= 1) {
+                JsBarcode("#barcode-preview", input.value, {
+                    format: "EAN13",
+                    flat: true,
+                    width: 2,
+                    height: 60,
+                    fontSize: 16
+                });
+            }
+        }
+
+        async function printToZebra() {
+            const eanValue = document.getElementById('ean-input').value;
+            const status = document.getElementById('status-msg');
+
+            if (eanValue.length < 12) {
+                alert("Numer musi mieć min. 12 cyfr!");
+                return;
+            }
+
+            // Parametry etykiety:
+            // ^FT50,120 -> Pozycja kodu kreskowego
+            // ^BY3 -> Grubość kresek
+            // ^FT0,250 -> Napis niżej (odstęp zwiększony ze 150/200 na 120/250)
+            // ^FB450,1,0,C -> Blok tekstu o szerokości 450 pkt, 1 linia, wyśrodkowany (C)
+            
+            const zpl = `^XA
+^BY3,2,100^FT50,120^BEN,100,Y,N^FD${eanValue.substring(0,12)}^FS
+^FT0,250^A0N,30,30^FB410,3,0,C^FDORLEN PACZKA^FS
+^XZ`;
+
+            console.log("%c--- GENEROWANY KOD ZPL ---", "color: #e63946; font-weight: bold;");
+            console.log(zpl);
+            console.log("%c--------------------------", "color: #e63946; font-weight: bold;");
+
+            try {
+                status.innerText = "Łączenie z ZQ521...";
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'ZQ' }],
+                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                });
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+
+                await characteristic.writeValue(new TextEncoder().encode(zpl));
+                status.innerText = "Wydrukowano!";
+                
+                setTimeout(() => { device.gatt.disconnect(); }, 1000);
+            } catch (error) {
+                console.error("Błąd:", error);
+                status.innerText = "Błąd: " + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
