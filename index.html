@@ -26,8 +26,25 @@
         .btn-snap { background-color: #2a9d8f; display: none; } /* Ukryty dopóki kamera nie ruszy */
 
         /* Kontener kamery */
-        #camera-container { position: relative; display: none; margin-bottom: 20px; border-radius: 8px; overflow: hidden; background: #000; }
-        video { width: 100%; height: 40%; display: block; }
+        #camera-container { 
+            position: relative; 
+            display: none; 
+            margin-bottom: 20px; 
+            border-radius: 15px; 
+            overflow: hidden; 
+            background: #000;
+            height: 180px; /* Ustalona stała wysokość okienka */
+            width: 100%;
+            border: 3px solid #333;
+}
+
+        /* Styl dla wideo - musi wypełnić kontener */
+        video { 
+            width: 100%; 
+            height: 100%; 
+            display: block; 
+            object-fit: cover; /* KLUCZ: Wypełnia okno bez zniekształceń, obcinając boki */
+        }
         canvas { display: none; } /* Ukryte płótno do zrzutów */
 
         /* Nakładka celownika */
