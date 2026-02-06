@@ -3,38 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drukarka Zebra - Orlen Paczka</title>
+    <title>Drukarka Zebra - Orlen Paczka (OCR)</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background: #ececec; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); display: inline-block; width: 100%; max-width: 450px; }
         
-        /* Styl dla inputu */
         input { 
-            font-size: 1.5rem; 
-            padding: 12px; 
-            width: 90%; 
-            margin-bottom: 15px; 
-            border: 2px solid #ddd; 
-            border-radius: 8px; 
-            text-align: center;
-            letter-spacing: 2px;
+            font-size: 1.5rem; padding: 12px; width: 90%; margin-bottom: 15px; 
+            border: 2px solid #ddd; border-radius: 8px; text-align: center; letter-spacing: 2px;
         }
         input:focus { border-color: #e63946; outline: none; }
 
-        /* Przyciski */
         button { font-size: 1.1rem; padding: 15px; width: 100%; cursor: pointer; border: none; border-radius: 8px; color: white; margin-bottom: 10px; transition: 0.3s; font-weight: bold; text-transform: uppercase; }
         
         .btn-print { background-color: #e63946; }
         .btn-print:active { background-color: #b91d2a; transform: scale(0.98); }
 
-        .btn-scan { background-color: #333; margin-bottom: 20px; }
-        .btn-scan:active { background-color: #000; transform: scale(0.98); }
+        .btn-camera { background-color: #333; }
+        .btn-snap { background-color: #2a9d8f; display: none; } /* Ukryty dopóki kamera nie ruszy */
 
-        /* Obszar kamery */
-        #reader { width: 100%; display: none; margin-bottom: 20px; border-radius: 8px; overflow: hidden; border: 2px dashed #333; }
+        /* Kontener kamery */
+        #camera-container { position: relative; display: none; margin-bottom: 20px; border-radius: 8px; overflow: hidden; background: #000; }
+        video { width: 100%; height: auto; display: block; }
+        canvas { display: none; } /* Ukryte płótno do zrzutów */
+
+        /* Nakładka celownika */
+        .overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border: 2px solid rgba(255, 0, 0, 0.7); width: 80%; height: 60px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); pointer-events: none;
+        }
+        .overlay::after { content: "Umieść cyfry w ramce"; position: absolute; top: -25px; left: 0; width: 100%; color: white; font-size: 12px; text-shadow: 1px 1px 2px black; }
 
         #barcode-preview { margin-top: 20px; width: 100%; height: auto; }
         .status { margin-top: 15px; font-weight: bold; color: #555; height: 20px; }
@@ -43,18 +45,18 @@
 <body>
 
     <div class="card">
-        <h2 style="color: #e63946;">ORLEN PACZKA</h2>
+        <h2 style="color: #e63946;">ORLEN PACZKA (OCR)</h2>
         
-        <div id="reader"></div>
-        <button id="scan-btn" class="btn-scan" onclick="toggleCamera()">📷 Skanuj Kamerą</button>
+        <div id="camera-container">
+            <video id="video" playsinline autoplay></video>
+            <div class="overlay"></div>
+            <canvas id="canvas"></canvas>
+        </div>
 
-        <input type="text" 
-               id="ean-input" 
-               inputmode="numeric" 
-               pattern="[0-9]*" 
-               placeholder="Wpisz lub zeskanuj kod" 
-               maxlength="20" 
-               oninput="validateInput(this)">
+        <button id="btn-toggle-cam" class="btn-camera" onclick="toggleCamera()">📷 Włącz Kamerę</button>
+        <button id="btn-snap" class="btn-snap" onclick="captureAndRead()">⚡ Odczytaj Cyfry</button>
+
+        <input type="text" id="ean-input" inputmode="numeric" placeholder="Wpisz lub zeskanuj 13 cyfr" maxlength="13" oninput="validateInput(this)">
 
         <button class="btn-print" onclick="printToZebra()">🖨️ Drukuj Etykietę</button>
         <div id="status-msg" class="status">Gotowy</div>
@@ -65,100 +67,122 @@
     </div>
 
     <script>
-        let html5QrcodeScanner = null;
-        let isScanning = false;
+        let stream = null;
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const statusMsg = document.getElementById('status-msg');
 
-        // Funkcja obsługująca kamerę
-        function toggleCamera() {
-            const scanBtn = document.getElementById('scan-btn');
-            const readerDiv = document.getElementById('reader');
-
-            if (isScanning) {
-                // Zatrzymaj skanowanie
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.stop().then(() => {
-                        readerDiv.style.display = "none";
-                        scanBtn.innerText = "📷 Skanuj Kamerą";
-                        isScanning = false;
-                    }).catch(err => console.error(err));
-                }
+        // 1. Obsługa kamery
+        async function toggleCamera() {
+            if (stream) {
+                // Wyłączanie
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                document.getElementById('camera-container').style.display = 'none';
+                document.getElementById('btn-snap').style.display = 'none';
+                document.getElementById('btn-toggle-cam').innerText = "📷 Włącz Kamerę";
+                statusMsg.innerText = "Gotowy";
             } else {
-                // Rozpocznij skanowanie
-                readerDiv.style.display = "block";
-                scanBtn.innerText = "❌ Zatrzymaj kamerę";
-                isScanning = true;
-
-                html5QrcodeScanner = new Html5Qrcode("reader");
-                
-                // Konfiguracja skanera
-                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-                
-                // Preferuj tylną kamerę (environment)
-                html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess);
+                // Włączanie
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+                    });
+                    video.srcObject = stream;
+                    document.getElementById('camera-container').style.display = 'block';
+                    document.getElementById('btn-snap').style.display = 'inline-block';
+                    document.getElementById('btn-toggle-cam').innerText = "❌ Zamknij";
+                    statusMsg.innerText = "Nakieruj na cyfry...";
+                } catch (err) {
+                    alert("Błąd kamery: " + err.message);
+                }
             }
         }
 
-        // Gdy kod zostanie wykryty
-        function onScanSuccess(decodedText, decodedResult) {
-            console.log(`Zeskanowano: ${decodedText}`);
+        // 2. Robienie zdjęcia i OCR
+        async function captureAndRead() {
+            if (!stream) return;
             
-            const input = document.getElementById('ean-input');
-            input.value = decodedText;
+            statusMsg.innerText = "⏳ Przetwarzanie obrazu...";
             
-            // Wywołaj walidację i generator podglądu ręcznie
-            validateInput(input);
+            // Pobranie klatki z wideo na canvas
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Wycięcie tylko środka (tam gdzie jest ramka) dla lepszej skuteczności
+            // Zakładamy, że ramka jest na środku i zajmuje ok 20% wysokości
+            // To przyspieszy OCR (mniej do czytania)
             
-            // Zatrzymaj kamerę po udanym skanie
-            toggleCamera();
-            
-            // Opcjonalnie: automatyczne wywołanie druku (odkomentuj poniżej jeśli chcesz)
-            // printToZebra(); 
+            try {
+                const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+                    // Kluczowa konfiguracja: szukamy TYLKO cyfr
+                    tessedit_char_whitelist: '0123456789', 
+                });
+
+                console.log("OCR Raw:", text);
+                
+                // Znajdź ciąg 13 cyfr w tekście
+                // Regex szuka 12 lub 13 cyfr z rzędu
+                const match = text.match(/\d{12,13}/);
+                
+                if (match) {
+                    const foundCode = match[0];
+                    statusMsg.innerText = "Znaleziono: " + foundCode;
+                    const input = document.getElementById('ean-input');
+                    input.value = foundCode;
+                    validateInput(input);
+                    toggleCamera(); // Wyłącz kamerę po sukcesie
+                } else {
+                    statusMsg.innerText = "Nie rozpoznano cyfr. Spróbuj bliżej.";
+                }
+
+            } catch (err) {
+                console.error(err);
+                statusMsg.innerText = "Błąd OCR.";
+            }
         }
 
-        // --- STARA LOGIKA (bez zmian) ---
-
+        // 3. Walidacja i Podgląd (dla EAN-13)
         function validateInput(input) {
-            // Usuwa wszystko co nie jest cyfrą (chyba że kody Orlenu mają litery - wtedy usuń tę linię)
             input.value = input.value.replace(/[^0-9]/g, '');
             
-            if (input.value.length >= 1) {
+            if (input.value.length === 12 || input.value.length === 13) {
                 try {
                     JsBarcode("#barcode-preview", input.value, {
-                        format: "CODE128", // Zmieniłem na CODE128 bo EAN13 wymaga dokładnie 13 cyfr, a paczki są różne
-                        flat: true,
-                        width: 2,
-                        height: 60,
-                        fontSize: 16
+                        format: "EAN13", // Orlen używa EAN13
+                        flat: true, width: 2, height: 60, fontSize: 16
                     });
                 } catch (e) {
-                    console.log("Kod za krótki lub nieprawidłowy dla tego formatu");
+                    console.log("Czekam na pełny kod EAN...");
                 }
             }
         }
 
+        // 4. Drukowanie ZPL (dostosowane do EAN13)
         async function printToZebra() {
             const eanValue = document.getElementById('ean-input').value;
-            const status = document.getElementById('status-msg');
-
-            if (eanValue.length < 5) { // Zmniejszyłem limit, bo paczki bywają różne
-                alert("Wpisz poprawny numer przesyłki!");
-                return;
+            
+            if (eanValue.length !== 13) {
+                // Często EAN ma 12 cyfr + 1 kontrolna. Jeśli wpiszesz 12, Zebra sama obliczy 13-stą.
+                // Ale jeśli masz surowy tekst 13 cyfr, to jest OK.
+                if (eanValue.length !== 12) {
+                     alert("Kod EAN musi mieć 12 lub 13 cyfr!");
+                     return;
+                }
             }
 
-            // Używam CODE128 (BC) w ZPL, jest bardziej uniwersalny dla logistyki niż EAN13 (BE)
+            // ^BEN - Komenda dla EAN-13 w języku ZPL
             const zpl = `^XA
-^BY3,2,100^FT50,120^BCN,100,Y,N,N^FD${eanValue}^FS
+^BY3,2,100^FT50,120^BEN,100,Y,N^FD${eanValue.substring(0,12)}^FS
 ^FT0,250^A0N,30,30^FB410,3,0,C^FDORLEN PACZKA^FS
 ^XZ`;
 
-            console.log("%c--- ZPL ---", "color: red");
-            console.log(zpl);
-
             try {
-                status.innerText = "Łączenie...";
+                statusMsg.innerText = "Łączenie...";
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'ZQ' }, { namePrefix: 'Zebra' }],
-                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                    filters: [{ namePrefix: 'ZQ' }, { namePrefix: 'Zebra' }, { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }]
                 });
 
                 const server = await device.gatt.connect();
@@ -166,14 +190,11 @@
                 const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
                 await characteristic.writeValue(new TextEncoder().encode(zpl));
-                status.innerText = "Wydrukowano!";
-                
-                setTimeout(() => { 
-                    if(device.gatt.connected) device.gatt.disconnect(); 
-                }, 2000);
+                statusMsg.innerText = "Wysłano!";
+                setTimeout(() => { if(device.gatt.connected) device.gatt.disconnect(); }, 2000);
             } catch (error) {
                 console.error(error);
-                status.innerText = "Błąd: " + error.message;
+                statusMsg.innerText = "Błąd: " + error.message;
             }
         }
     </script>
