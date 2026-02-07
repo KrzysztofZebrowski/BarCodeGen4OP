@@ -185,18 +185,21 @@
         }
 
         // 4. DRUKOWANIE (Bluetooth)
+        // 4. DRUKOWANIE (Wersja: Widzę Wszystko)
         async function printToZebra() {
             const eanValue = document.getElementById('ean-input').value;
+            const statusMsg = document.getElementById('status-msg');
             
             if (eanValue.length < 12) {
                 alert("Wpisz poprawny numer (min. 12 cyfr)!");
                 return;
             }
 
-            // Przygotowanie kodu ZPL
-            // ^XA - Start, ^PW - Szerokość (opcjonalnie), ^BY - Parametry kodu
-            // ^BEN - Kod EAN13
-            // UWAGA: Jeśli drukarka ma ZPL, to zadziała od razu.
+            // Definicja usługi Zebry (konieczna do komunikacji PO połączeniu)
+            const ZEBRA_SERVICE_UUID = '38eb4a80-c570-11e3-9507-0002a5d5c51b';
+            const ZEBRA_WRITE_CHAR_UUID = '38eb4a82-c570-11e3-9507-0002a5d5c51b';
+
+            // Wymuszamy ZPL i ustawiamy etykietę
             const zpl = `
 ^XA
 ^PW580
@@ -206,38 +209,43 @@
 ^XZ`;
 
             try {
-                statusMsg.innerText = "Szukam drukarki...";
+                statusMsg.innerText = "Szukam urządzeń...";
                 
-                // Prosimy o urządzenie z konkretnym UUID usługi Zebry
+                // --- ZMIANA: TRYB 'ACCEPT ALL' ---
+                // To pokaże WSZYSTKIE urządzenia Bluetooth w pobliżu.
+                // Wybierz z listy swoją Zebrę (może nazywać się 'XXJ21...' lub 'Zebra').
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { services: [ZEBRA_SERVICE_UUID] } 
-                        // To filtrowanie jest bezpieczniejsze niż po nazwie
-                    ],
-                    optionalServices: [ZEBRA_SERVICE_UUID]
+                    acceptAllDevices: true,
+                    optionalServices: [ZEBRA_SERVICE_UUID] 
                 });
 
-                statusMsg.innerText = "Łączenie...";
+                statusMsg.innerText = "Łączenie z " + device.name + "...";
+                
                 const server = await device.gatt.connect();
+                
+                // Pobieramy usługę (to może chwilę potrwać)
                 const service = await server.getPrimaryService(ZEBRA_SERVICE_UUID);
                 const characteristic = await service.getCharacteristic(ZEBRA_WRITE_CHAR_UUID);
 
-                statusMsg.innerText = "Wysyłanie...";
+                statusMsg.innerText = "Wysyłanie danych...";
                 
-                // Konwersja tekstu na bajty
                 const encoder = new TextEncoder();
                 await characteristic.writeValue(encoder.encode(zpl));
 
                 statusMsg.innerText = "✅ Wydrukowano!";
                 
-                // Rozłącz po 2 sekundach, żeby zwolnić drukarkę
+                // Rozłącz po 2 sek
                 setTimeout(() => { if(device.gatt.connected) device.gatt.disconnect(); }, 2000);
 
             } catch (error) {
                 console.error(error);
-                statusMsg.innerText = "Błąd: " + error.message;
-                if(error.name === 'NotFoundError') {
-                    statusMsg.innerText = "Anulowano lub nie znaleziono Zebry.";
+                // Obsługa typowych błędów
+                if (error.name === 'NotFoundError') {
+                    statusMsg.innerText = "Anulowano wybór.";
+                } else if (error.name === 'SecurityError') {
+                    statusMsg.innerText = "Błąd bezpieczeństwa (użyj HTTPS!)";
+                } else {
+                    statusMsg.innerText = "Błąd: " + error.message;
                 }
             }
         }
