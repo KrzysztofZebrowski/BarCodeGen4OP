@@ -86,13 +86,23 @@
             background: #fff;
             display: none; 
             animation: fadeIn 0.5s ease;
+
+            /* TO NAPRAWIA UKŁAD: */
+            flex-direction: column; /* Ustawia elementy jeden pod drugim */
+            align-items: center;    /* Centruje je w poziomie */
+            justify-content: center;
+            overflow: hidden;       /* Ucina wszystko co wystaje poza ramkę */
         }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         #generated-img {
+            display: block;
+            margin-top: 10px; /* Odstęp od napisu */
+            
             max-width: 100%;
             height: auto;
+
             border: 1px solid #eee;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
@@ -117,7 +127,7 @@
 
     <div class="input-group">
         <label>WPISZ NUMER PACZKI</label>
-        <input type="tel" id="ean-input" placeholder="0000000000000" maxlength="13" oninput="checkAutoGenerate(this)">
+        <input type="tel" id="ean-input" placeholder="Numer paczki" maxlength="13" oninput="checkAutoGenerate(this)">
     </div>
 
     <div id="result-container">
@@ -149,38 +159,82 @@
     }
 
     // --- 2. GENEROWANIE OBRAZKA ---
+    // --- FUNKCJA GENEROWANIA (Zmniejszony kod: 2 cale) ---
     function generateBarcodeImage() {
         const ean = document.getElementById('ean-input').value;
         
-        if (ean.length < 12) return; // Za krótki, ignorujemy
+        // Walidacja długości (12 lub 13 cyfr)
+        if (ean.length !== 12 && ean.length !== 13) return;
+
+        const statusMsg = document.getElementById('status');
+        statusMsg.innerText = "Generowanie etykiety...";
 
         try {
+            // --- KONFIGURACJA WYMIARÓW ---
+            const DPI = 203; // Rozdzielczość drukarki
+            
+            // Wymiary całej etykiety (4x6 cali)
+            const labelWidthPx = 4 * DPI;   // 812 px
+            const labelHeightPx = 6 * DPI;  // 1218 px
+
+            // --- ZMIANA TUTAJ: ZMNIEJSZENIE KODU ---
+            // Było 3, zmieniamy na 2 cale.
+            const targetBarcodeWidthInch = 2.0; 
+            const targetBarcodeWidthPx = targetBarcodeWidthInch * DPI; // ok. 406 px
+
+            // 1. Generujemy kod źródłowy na ukrytym canvasie
+            // Generujemy go w wysokiej jakości, żeby po zmniejszeniu był ostry
             JsBarcode("#barcode-canvas", ean, {
                 format: "EAN13",
-                width: 4,
-                height: 150,
+                width: 4,        
+                height: 150,     // Wysokość źródłowa
                 displayValue: true,
                 fontSize: 40,
-                margin: 20,
+                margin: 0,       // Margines zerowy (dodamy go pozycjonowaniem)
                 background: "#ffffff",
                 lineColor: "#000000"
             });
 
-            const canvas = document.getElementById('barcode-canvas');
-            const imgData = canvas.toDataURL("image/png");
+            // 2. Przygotowujemy główny canvas (Cała Etykieta)
+            const mainCanvas = document.createElement('canvas');
+            mainCanvas.width = labelWidthPx;
+            mainCanvas.height = labelHeightPx;
+            const ctx = mainCanvas.getContext('2d');
+
+            // Wypełniamy tło bielą
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, labelWidthPx, labelHeightPx);
+
+            // 3. Obliczamy pozycję i skalowanie
+            const tempCanvas = document.getElementById('barcode-canvas');
+            
+            // Zachowujemy proporcje kodu
+            const aspectRatio = tempCanvas.height / tempCanvas.width;
+            const targetHeightPx = targetBarcodeWidthPx * aspectRatio;
+
+            // Centrowanie w poziomie: (Szerokość Etykiety - Szerokość Kodu) / 2
+            const destX = (labelWidthPx - targetBarcodeWidthPx) / 2;
+            
+            // Pozycja od góry (np. 50px marginesu górnego)
+            const destY = 50;
+
+            // 4. Rysujemy kod na etykiecie
+            // ctx.drawImage(źródło, x, y, szerokość, wysokość)
+            ctx.drawImage(tempCanvas, destX, destY, targetBarcodeWidthPx, targetHeightPx);
+
+            // 5. Wyświetlanie wyniku
+            const imgData = mainCanvas.toDataURL("image/png");
             const imgElement = document.getElementById('generated-img');
             
             imgElement.src = imgData;
-            document.getElementById('result-container').style.display = 'block';
-            document.getElementById('status').innerText = "✅ Kod gotowy do druku!";
+            document.getElementById('result-container').style.display = 'flex'; 
             
-            // Opcjonalnie: ukryj klawiaturę po wygenerowaniu (dla wygody)
+            statusMsg.innerText = "✅ Etykieta gotowa (mały kod)!";
             document.getElementById('ean-input').blur();
 
         } catch (e) {
-            // JsBarcode rzuci błędem, jeśli suma kontrolna się nie zgadza
             console.error(e);
-            document.getElementById('status').innerText = "⚠️ Błędny numer (zła suma kontrolna?)";
+            statusMsg.innerText = "⚠️ Błąd generowania.";
         }
     }
 
