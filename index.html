@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator Kodu EAN-13</title>
+    <title>Generator etykiet</title>
     
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
@@ -14,7 +14,7 @@
             font-family: 'Segoe UI', sans-serif; 
             background: var(--light); 
             margin: 0; 
-            padding: 20px; 
+            padding: 15px; 
             text-align: center; 
             display: flex;
             flex-direction: column;
@@ -31,7 +31,7 @@
             box-sizing: border-box;
         }
         
-        h2 { color: var(--orlen-red); margin-top: 0; text-transform: uppercase; }
+        h2 { color: var(--orlen-red); margin-top: 0; margin-bottom: 20px; text-transform: uppercase; }
 
         /* KAMERA */
         #camera-wrapper { 
@@ -54,11 +54,15 @@
         /* INPUT */
         .input-group { margin: 15px 0; width: 100%; }
         label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
+        
+        /* Zmieniony styl inputa - wygląda nowocześniej */
         input { 
-            width: 100%; padding: 12px; font-size: 1.4rem; border: 2px solid #ddd; 
-            border-radius: 8px; box-sizing: border-box; text-align: center; 
-            font-weight: bold; letter-spacing: 2px;
+            width: 100%; padding: 15px; font-size: 1.6rem; 
+            border: 3px solid #ddd; border-radius: 8px; box-sizing: border-box; 
+            text-align: center; font-weight: bold; letter-spacing: 3px;
+            transition: border-color 0.3s;
         }
+        input:focus { outline: none; border-color: var(--orlen-red); background: #fffdfd; }
 
         /* PRZYCISKI */
         button { 
@@ -68,28 +72,32 @@
         }
         .btn-cam { background: var(--dark); color: white; }
         .btn-scan { background: #2a9d8f; color: white; display: none; }
-        .btn-gen { background: var(--orlen-red); color: white; font-size: 1.2rem; margin-top: 10px; }
+        
+        /* Przycisk generuj ukrywamy/zmniejszamy, bo dzieje się to automatycznie, 
+           ale zostawiamy go jako opcję awaryjną */
+        .btn-gen { background: #555; color: white; font-size: 0.9rem; margin-top: 5px; opacity: 0.8; }
 
-        /* WYNIK - OBRAZEK PNG */
+        /* WYNIK */
         #result-container {
-            margin-top: 25px;
-            padding: 15px;
+            margin-top: 20px;
+            padding: 10px;
             border: 2px dashed #ccc;
             border-radius: 10px;
             background: #fff;
-            display: none; /* Ukryty dopóki nie wygenerujemy */
+            display: none; 
+            animation: fadeIn 0.5s ease;
         }
         
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
         #generated-img {
             max-width: 100%;
             height: auto;
             border: 1px solid #eee;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
         
-        .hint { font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: 500; }
-        
-        /* Ukryty canvas roboczy */
+        .hint { font-size: 0.9rem; color: #d32f2f; margin-bottom: 10px; font-weight: 700; }
         #barcode-canvas { display: none; }
     </style>
 </head>
@@ -104,28 +112,79 @@
     </div>
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Kamerę</button>
-    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Skanuj</button>
+    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Skanuj Kamerą</button>
+    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Zrób zdjęcie</button>
 
     <div class="input-group">
-        <label>NUMER EAN-13</label>
-        <input type="text" id="ean-input" placeholder="Wpisz lub zeskanuj" maxlength="13">
+        <label>WPISZ NUMER PACZKI</label>
+        <input type="tel" id="ean-input" placeholder="0000000000000" maxlength="13" oninput="checkAutoGenerate(this)">
     </div>
 
-    <button class="btn-gen" onclick="generateBarcodeImage()">🎯 GENERUJ KOD</button>
-
     <div id="result-container">
-        <div class="hint">👇 Przytrzymaj obrazek, aby udostępnić drukarce 👇</div>
+        <div class="hint">👇 Przytrzymaj obrazek i Udostępnij 👇</div>
         <img id="generated-img" alt="Kod kreskowy" />
     </div>
     
-    <div id="status" style="margin-top: 10px; color: #888; font-size: 0.8rem;">Gotowy.</div>
+    <button class="btn-gen" onclick="generateBarcodeImage()">Odśwież kod ręcznie</button>
+    
+    <div id="status" style="margin-top: 15px; color: #888; font-size: 0.8rem;">Gotowy.</div>
 
     <canvas id="barcode-canvas"></canvas>
 </div>
 
 <script>
-    // --- 1. KAMERA I OCR ---
+    // --- 1. AUTOMATYCZNE GENEROWANIE ---
+    function checkAutoGenerate(inputElement) {
+        const val = inputElement.value;
+        const resultContainer = document.getElementById('result-container');
+        
+        // EAN-13 ma 12 (bez sumy kontrolnej) lub 13 cyfr.
+        // Jeśli użytkownik wpisze 12 lub 13 cyfr, generujemy.
+        if (val.length === 12 || val.length === 13) {
+            generateBarcodeImage();
+        } else if (val.length < 12) {
+            // Jeśli użytkownik kasuje cyfry, ukrywamy wynik, żeby nie mylić
+            resultContainer.style.display = 'none';
+        }
+    }
+
+    // --- 2. GENEROWANIE OBRAZKA ---
+    function generateBarcodeImage() {
+        const ean = document.getElementById('ean-input').value;
+        
+        if (ean.length < 12) return; // Za krótki, ignorujemy
+
+        try {
+            JsBarcode("#barcode-canvas", ean, {
+                format: "EAN13",
+                width: 4,
+                height: 150,
+                displayValue: true,
+                fontSize: 40,
+                margin: 20,
+                background: "#ffffff",
+                lineColor: "#000000"
+            });
+
+            const canvas = document.getElementById('barcode-canvas');
+            const imgData = canvas.toDataURL("image/png");
+            const imgElement = document.getElementById('generated-img');
+            
+            imgElement.src = imgData;
+            document.getElementById('result-container').style.display = 'block';
+            document.getElementById('status').innerText = "✅ Kod gotowy do druku!";
+            
+            // Opcjonalnie: ukryj klawiaturę po wygenerowaniu (dla wygody)
+            document.getElementById('ean-input').blur();
+
+        } catch (e) {
+            // JsBarcode rzuci błędem, jeśli suma kontrolna się nie zgadza
+            console.error(e);
+            document.getElementById('status').innerText = "⚠️ Błędny numer (zła suma kontrolna?)";
+        }
+    }
+
+    // --- 3. KAMERA I OCR ---
     let stream = null;
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -155,7 +214,7 @@
         stream = null;
         camWrapper.style.display = 'none';
         btnScan.style.display = 'none';
-        btnToggle.innerText = "📷 Włącz Kamerę";
+        btnToggle.innerText = "📷 Skanuj Kamerą";
     }
 
     async function captureAndRead() {
@@ -170,48 +229,12 @@
             const match = text.match(/\d{12,13}/);
             if (match) {
                 document.getElementById('ean-input').value = match[0];
-                statusDiv.innerText = "✅ Zeskanowano!";
                 stopCamera();
-                generateBarcodeImage(); // Automatycznie generuj po zeskanowaniu
+                generateBarcodeImage(); // Auto-generowanie po skanie
             } else {
-                statusDiv.innerText = "⚠️ Nie wykryto kodu.";
+                statusDiv.innerText = "⚠️ Nie wykryto kodu. Spróbuj bliżej.";
             }
         } catch (e) { statusDiv.innerText = "Błąd OCR"; }
-    }
-
-    // --- 2. GENEROWANIE OBRAZKA PNG ---
-    function generateBarcodeImage() {
-        const ean = document.getElementById('ean-input').value;
-        
-        if (ean.length < 12) {
-            alert("Wpisz poprawny numer (min. 12 cyfr)!");
-            return;
-        }
-
-        // 1. Rysujemy kod na ukrytym canvasie
-        // Używamy opcji "background", żeby tło było białe (ważne dla drukarek!)
-        JsBarcode("#barcode-canvas", ean, {
-            format: "EAN13",
-            width: 4,        // Grubość kresek (dobra czytelność)
-            height: 150,     // Wysokość kodu
-            displayValue: true, // Pokazuj cyfry pod kodem
-            fontSize: 40,    // Duże cyfry
-            margin: 20,      // Margines dookoła (Quiet Zone)
-            background: "#ffffff", // Białe tło (nie przezroczyste!)
-            lineColor: "#000000"
-        });
-
-        // 2. Konwertujemy Canvas na obrazek PNG (Base64)
-        const canvas = document.getElementById('barcode-canvas');
-        const imgData = canvas.toDataURL("image/png");
-
-        // 3. Wstawiamy do widocznego tagu <img>
-        const imgElement = document.getElementById('generated-img');
-        imgElement.src = imgData;
-
-        // 4. Pokazujemy sekcję z wynikiem
-        document.getElementById('result-container').style.display = 'block';
-        document.getElementById('status').innerText = "✅ Obraz wygenerowany. Przytrzymaj go!";
     }
 </script>
 
