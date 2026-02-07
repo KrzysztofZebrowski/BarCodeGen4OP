@@ -191,10 +191,11 @@
             }
 
             // ^BEN - Komenda dla EAN-13 w języku ZPL
+            const forceZPL = '! U1 setvar "device.languages" "zpl"\r\n';
             const zpl = `^XA
-^BY3,2,100^FT50,120^BEN,100,Y,N^FD${eanValue.substring(0,12)}^FS
-^FT0,250^A0N,30,30^FB410,3,0,C^FDORLEN PACZKA^FS
-^XZ`;
+                        ^BY3,2,100^FT50,120^BEN,100,Y,N^FD${eanValue.substring(0,12)}^FS
+                        ^FT0,250^A0N,30,30^FB410,3,0,C^FDORLEN PACZKA^FS
+                        ^XZ`;
 
             try {
                 statusMsg.innerText = "Łączenie...";
@@ -206,7 +207,7 @@
                 const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
                 const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
-                await characteristic.writeValue(new TextEncoder().encode(zpl));
+                await characteristic.writeValue(new TextEncoder().encode(forceZPL + zpl));
                 statusMsg.innerText = "Wysłano!";
                 setTimeout(() => { if(device.gatt.connected) device.gatt.disconnect(); }, 2000);
             } catch (error) {
