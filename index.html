@@ -199,7 +199,7 @@
             try {
                 statusMsg.innerText = "Łączenie...";
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'ZQ' }, { namePrefix: 'Zebra' }, { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }]
+                    filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }]
                 });
 
                 const server = await device.gatt.connect();
