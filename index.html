@@ -3,180 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orlen Paczka - PDF Generator</title>
+    <title>Generator Kodu EAN-13</title>
     
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     
     <style>
-        :root { --orlen-red: #d32f2f; --dark: #222; --light: #f9f9f9; }
+        :root { --orlen-red: #d32f2f; --dark: #222; --light: #f4f4f4; }
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Segoe UI', sans-serif; 
             background: var(--light); 
             margin: 0; 
-            padding: 15px; 
-            display: flex; 
-            justify-content: center; 
+            padding: 20px; 
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         
-        /* Kontener trzyma wszystko w ryzach - naprawia problem inputa */
         .container { 
             width: 100%; 
-            max-width: 480px; 
+            max-width: 450px; 
             background: white; 
             padding: 20px; 
-            border-radius: 16px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
-            box-sizing: border-box; /* Kluczowe dla marginesów */
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            box-sizing: border-box;
         }
         
-        h2 { 
-            color: var(--orlen-red); 
-            margin-top: 0; 
-            text-transform: uppercase; 
-            font-size: 1.4rem; 
-            text-align: center; 
-            letter-spacing: 1px;
-        }
+        h2 { color: var(--orlen-red); margin-top: 0; text-transform: uppercase; }
 
-        /* --- STYL KAMERY (POWRÓT DO 180PX + CELOWNIK) --- */
+        /* KAMERA */
         #camera-wrapper { 
             display: none; 
             position: relative; 
             margin-bottom: 15px; 
-            border-radius: 12px; 
+            border-radius: 8px; 
             overflow: hidden; 
             background: #000; 
-            border: 2px solid #333; 
-            height: 180px; /* Sztywna wysokość jak prosiłeś */
+            height: 180px; 
             width: 100%;
         }
-        
-        video { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: cover; 
-        }
-        
-        /* Celownik */
+        video { width: 100%; height: 100%; object-fit: cover; }
         .overlay { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%); 
-            width: 80%; 
-            height: 60px; 
-            border: 2px solid rgba(211, 47, 47, 0.9); /* Czerwona ramka */
-            box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.6); /* Przyciemnienie tła */
-            z-index: 10;
-            border-radius: 4px;
-        }
-        
-        /* Czerwona kreska skanująca */
-        .overlay::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 0; right: 0;
-            height: 2px;
-            background: rgba(255, 0, 0, 0.5);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 80%; height: 60px; border: 2px solid rgba(211, 47, 47, 0.8); 
+            box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.6); 
         }
 
-        canvas { display: none; } /* Ukryty canvas do OCR i kodów */
-        #barcode-svg { display: none; } /* Ukryte SVG do generowania */
-
-        /* --- INPUT (NAPRAWIONY) --- */
-        .input-group { margin: 20px 0; }
-        
-        label { 
-            font-size: 0.9rem; 
-            font-weight: 700; 
-            color: #555; 
-            display: block; 
-            margin-bottom: 8px; 
-        }
-        
+        /* INPUT */
+        .input-group { margin: 15px 0; width: 100%; }
+        label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
         input { 
-            width: 100%; /* Dopasuj do kontenera */
-            padding: 14px; 
-            font-size: 1.3rem; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 8px; 
-            box-sizing: border-box; /* To naprawia wyjeżdżanie poza ekran! */
-            text-align: center; 
-            font-weight: bold; 
-            letter-spacing: 2px;
-            background: #fff;
-            color: #333;
-            transition: 0.3s;
-        }
-        
-        input:focus { 
-            border-color: var(--orlen-red); 
-            outline: none; 
-            background: #fff5f5; 
+            width: 100%; padding: 12px; font-size: 1.4rem; border: 2px solid #ddd; 
+            border-radius: 8px; box-sizing: border-box; text-align: center; 
+            font-weight: bold; letter-spacing: 2px;
         }
 
-        /* --- PRZYCISKI --- */
+        /* PRZYCISKI */
         button { 
-            width: 100%; 
-            padding: 14px; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 1rem; 
-            font-weight: 600; 
-            cursor: pointer; 
-            margin-bottom: 10px; 
-            transition: transform 0.1s, background 0.2s; 
-            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 12px; border: none; border-radius: 8px; 
+            font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 8px; 
+            transition: 0.2s; 
         }
-        
-        button:active { transform: scale(0.98); }
-        
         .btn-cam { background: var(--dark); color: white; }
-        .btn-scan { background: #2a9d8f; color: white; display: none; } /* Domyślnie ukryty */
+        .btn-scan { background: #2a9d8f; color: white; display: none; }
+        .btn-gen { background: var(--orlen-red); color: white; font-size: 1.2rem; margin-top: 10px; }
+
+        /* WYNIK - OBRAZEK PNG */
+        #result-container {
+            margin-top: 25px;
+            padding: 15px;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            background: #fff;
+            display: none; /* Ukryty dopóki nie wygenerujemy */
+        }
         
-        .btn-print { 
-            background: var(--orlen-red); 
-            color: white; 
-            font-size: 1.1rem; 
-            margin-top: 15px; 
-            box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+        #generated-img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
-        #status { 
-            margin-top: 15px; 
-            font-size: 0.9rem; 
-            color: #666; 
-            text-align: center; 
-            min-height: 20px; 
-        }
-
+        
+        .hint { font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: 500; }
+        
+        /* Ukryty canvas roboczy */
+        #barcode-canvas { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Orlen Druk PDF</h2>
+    <h2>Generator Etykiet</h2>
 
     <div id="camera-wrapper">
         <video id="video" playsinline autoplay></video>
-        <div class="overlay"></div> </div>
-    <canvas id="canvas"></canvas>
+        <div class="overlay"></div>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
 
     <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Kamerę</button>
-    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Skanuj Kod</button>
+    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Skanuj</button>
 
     <div class="input-group">
-        <label>NUMER PACZKI (EAN-13)</label>
+        <label>NUMER EAN-13</label>
         <input type="text" id="ean-input" placeholder="Wpisz lub zeskanuj" maxlength="13">
     </div>
 
-    <button class="btn-print" onclick="generateAndOpenPDF()">📄 OTWÓRZ W ZEBRA PRINT</button>
-    
-    <div id="status">Gotowy do pracy.</div>
+    <button class="btn-gen" onclick="generateBarcodeImage()">🎯 GENERUJ KOD</button>
 
-    <svg id="barcode-svg"></svg>
+    <div id="result-container">
+        <div class="hint">👇 Przytrzymaj obrazek, aby udostępnić drukarce 👇</div>
+        <img id="generated-img" alt="Kod kreskowy" />
+    </div>
+    
+    <div id="status" style="margin-top: 10px; color: #888; font-size: 0.8rem;">Gotowy.</div>
+
+    <canvas id="barcode-canvas"></canvas>
 </div>
 
 <script>
@@ -185,9 +130,9 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const statusDiv = document.getElementById('status');
+    const camWrapper = document.getElementById('camera-wrapper');
     const btnScan = document.getElementById('btn-scan');
     const btnToggle = document.getElementById('btn-cam-toggle');
-    const camWrapper = document.getElementById('camera-wrapper');
 
     async function toggleCamera() {
         if (stream) {
@@ -195,18 +140,13 @@
         } else {
             try {
                 statusDiv.innerText = "Uruchamianie kamery...";
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" } 
-                });
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
                 camWrapper.style.display = 'block';
-                btnScan.style.display = 'flex'; // Pokaż przycisk skanowania
-                btnToggle.innerText = "❌ Zamknij Kamerę";
-                btnToggle.style.background = "#555";
-                statusDiv.innerText = "Nakieruj kod na celownik";
-            } catch (err) {
-                alert("Błąd kamery: " + err.message);
-            }
+                btnScan.style.display = 'block';
+                btnToggle.innerText = "❌ Zamknij";
+                statusDiv.innerText = "Skanuj kod...";
+            } catch (err) { alert("Błąd: " + err.message); }
         }
     }
 
@@ -216,126 +156,62 @@
         camWrapper.style.display = 'none';
         btnScan.style.display = 'none';
         btnToggle.innerText = "📷 Włącz Kamerę";
-        btnToggle.style.background = "var(--dark)";
-        statusDiv.innerText = "Kamera wyłączona";
     }
 
     async function captureAndRead() {
         if (!stream) return;
-        statusDiv.innerText = "⏳ Analizowanie obrazu...";
-        
-        // Pobieramy klatkę z wideo
+        statusDiv.innerText = "Analizowanie...";
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0);
 
         try {
-            // Rozpoznawanie tekstu (tylko cyfry)
-            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { 
-                tessedit_char_whitelist: '0123456789' 
-            });
-            
-            // Szukamy ciągu 12 lub 13 cyfr
+            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789' });
             const match = text.match(/\d{12,13}/);
-            
             if (match) {
                 document.getElementById('ean-input').value = match[0];
-                statusDiv.innerText = `✅ Zeskanowano: ${match[0]}`;
-                stopCamera(); // Sukces - zamykamy kamerę
+                statusDiv.innerText = "✅ Zeskanowano!";
+                stopCamera();
+                generateBarcodeImage(); // Automatycznie generuj po zeskanowaniu
             } else {
-                statusDiv.innerText = "⚠️ Nie wykryto kodu. Spróbuj ponownie.";
+                statusDiv.innerText = "⚠️ Nie wykryto kodu.";
             }
-        } catch (e) {
-            console.error(e);
-            statusDiv.innerText = "Błąd OCR.";
-        }
+        } catch (e) { statusDiv.innerText = "Błąd OCR"; }
     }
 
-    // --- 2. GENEROWANIE PDF DLA ZEBRA PRINT ---
-    function generateAndOpenPDF() {
+    // --- 2. GENEROWANIE OBRAZKA PNG ---
+    function generateBarcodeImage() {
         const ean = document.getElementById('ean-input').value;
-        const statusMsg = document.getElementById('status');
         
-        if(ean.length < 12) { 
-            alert("Wpisz poprawny numer (min. 12 cyfr)!"); 
-            return; 
+        if (ean.length < 12) {
+            alert("Wpisz poprawny numer (min. 12 cyfr)!");
+            return;
         }
 
-        statusMsg.innerText = "Generowanie PDF...";
-
-        // 1. Generuj SVG kodu kreskowego
-        JsBarcode("#barcode-svg", ean, {
+        // 1. Rysujemy kod na ukrytym canvasie
+        // Używamy opcji "background", żeby tło było białe (ważne dla drukarek!)
+        JsBarcode("#barcode-canvas", ean, {
             format: "EAN13",
-            width: 4,
-            height: 100,
-            displayValue: true,
-            fontSize: 40,
-            margin: 10
+            width: 4,        // Grubość kresek (dobra czytelność)
+            height: 150,     // Wysokość kodu
+            displayValue: true, // Pokazuj cyfry pod kodem
+            fontSize: 40,    // Duże cyfry
+            margin: 20,      // Margines dookoła (Quiet Zone)
+            background: "#ffffff", // Białe tło (nie przezroczyste!)
+            lineColor: "#000000"
         });
 
-        // 2. Konwersja SVG na PNG (dla PDF)
-        const svgNode = document.getElementById('barcode-svg');
-        const xml = new XMLSerializer().serializeToString(svgNode);
-        const svg64 = btoa(xml);
-        const image64 = 'data:image/svg+xml;base64,' + svg64;
-        
-        const img = new Image();
-        img.src = image64;
+        // 2. Konwertujemy Canvas na obrazek PNG (Base64)
+        const canvas = document.getElementById('barcode-canvas');
+        const imgData = canvas.toDataURL("image/png");
 
-        img.onload = function() {
-            // Rysujemy na canvasie, żeby mieć czysty format obrazka
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = "white"; // Białe tło pod kodem
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-            
-            const pngData = canvas.toDataURL('image/png');
+        // 3. Wstawiamy do widocznego tagu <img>
+        const imgElement = document.getElementById('generated-img');
+        imgElement.src = imgData;
 
-            // 3. Tworzymy PDF (4x6 cali)
-            const { jsPDF } = window.jspdf;
-            // 4 cale = 101.6mm, 6 cali = 152.4mm
-            const doc = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: [101.6, 152.4]
-            });
-
-            // Nagłówek
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(22);
-            doc.text("ORLEN PACZKA", 50.8, 20, { align: "center" });
-
-            // Kod kreskowy (obrazek)
-            // Centrujemy: szerokość obrazka w PDF to 80mm
-            // (101.6 - 80) / 2 = 10.8 marginesu
-            doc.addImage(pngData, 'PNG', 10.8, 40, 80, 50);
-
-            // Dodatkowe info
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(14);
-            doc.text("Etykieta Logistyczna", 50.8, 110, { align: "center" });
-            
-            // Data i czas
-            const date = new Date().toLocaleString('pl-PL');
-            doc.setFontSize(10);
-            doc.text(date, 50.8, 140, { align: "center" });
-
-            // 4. Zapis i otwarcie
-            const pdfBlob = doc.output('blob');
-            const url = URL.createObjectURL(pdfBlob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Etykieta_${ean}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            statusMsg.innerText = "✅ PDF gotowy! Wybierz aplikację Zebra Print.";
-        };
+        // 4. Pokazujemy sekcję z wynikiem
+        document.getElementById('result-container').style.display = 'block';
+        document.getElementById('status').innerText = "✅ Obraz wygenerowany. Przytrzymaj go!";
     }
 </script>
 
