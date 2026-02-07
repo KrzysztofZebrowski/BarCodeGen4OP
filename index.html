@@ -3,252 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drukarka Zebra ZQ - Web Print</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <title>Orlen Paczka - Druk Pojedynczy</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-
+    
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 15px; background: #f4f4f4; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-        h2 { color: #d32f2f; margin-top: 0; }
+        :root { --orlen-red: #d32f2f; --dark: #333; --light: #f4f4f4; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--light); margin: 0; padding: 20px; text-align: center; }
+        
+        .container { max-width: 480px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: var(--orlen-red); margin-bottom: 20px; text-transform: uppercase; }
 
-        /* --- STYL KAMERY (Mniejsze okno) --- */
-        #camera-container { 
-            position: relative; 
-            display: none; /* Domyślnie ukryta */
-            margin-bottom: 15px; 
-            border-radius: 10px; 
-            overflow: hidden; 
-            background: #000;
-            height: 180px; /* Ograniczona wysokość */
-            border: 2px solid #333;
+        /* KAMERA */
+        #camera-wrapper { 
+            display: none; position: relative; margin-bottom: 15px; 
+            border-radius: 8px; overflow: hidden; background: #000; border: 2px solid #333; height: 220px; 
         }
-
-        video { 
-            width: 100%; 
-            height: 100%; 
-            display: block; 
-            object-fit: cover; /* Obraz wypełnia okno, przycinając górę i dół */
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .overlay { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 80%; height: 80px; border: 2px solid rgba(211, 47, 47, 0.8); box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.6); 
         }
-
-        /* Czerwona ramka celownika */
-        .overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            border: 2px solid rgba(230, 57, 70, 0.8); width: 80%; height: 50px;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); pointer-events: none;
-        }
-        .overlay::after { content: "Umieść numer w ramce"; position: absolute; top: -20px; left: 0; width: 100%; color: white; font-size: 10px; }
-
         canvas { display: none; }
 
-        /* --- STYL ELEMENTÓW FORMULARZA --- */
+        /* INPUT */
+        .input-group { margin: 20px 0; }
+        label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
         input { 
-            font-size: 1.4rem; padding: 10px; width: 100%; box-sizing: border-box;
-            margin-bottom: 15px; border: 2px solid #ccc; border-radius: 8px; 
-            text-align: center; letter-spacing: 2px; font-weight: bold;
+            width: 100%; padding: 15px; font-size: 1.5rem; border: 3px solid #ddd; 
+            border-radius: 8px; box-sizing: border-box; text-align: center; font-weight: bold; letter-spacing: 2px;
         }
-        input:focus { border-color: #d32f2f; outline: none; }
+        input:focus { border-color: var(--orlen-red); outline: none; background: #fffdfd; }
 
+        /* PRZYCISKI */
         button { 
-            font-size: 1rem; padding: 12px; width: 100%; cursor: pointer; 
-            border: none; border-radius: 8px; color: white; margin-bottom: 8px; 
-            font-weight: bold; text-transform: uppercase; transition: 0.2s;
+            width: 100%; padding: 15px; border: none; border-radius: 8px; 
+            font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.2s; 
         }
-        
-        .btn-print { background-color: #d32f2f; height: 60px; font-size: 1.2rem; } /* Czerwony Orlen */
-        .btn-print:active { background-color: #b71c1c; }
+        .btn-print { background: var(--orlen-red); color: white; font-size: 1.3rem; margin-top: 10px; height: 70px; }
+        .btn-print:active { background: #b71c1c; }
+        .btn-cam { background: var(--dark); color: white; }
+        .btn-scan { background: #2a9d8f; color: white; display: none; }
 
-        .btn-cam { background-color: #333; }
-        .btn-snap { background-color: #2a9d8f; display: none; } /* Zielony przycisk skanowania */
-
-        #status-msg { margin-top: 10px; font-weight: bold; color: #555; min-height: 1.2em; }
-        #barcode-preview { margin-top: 10px; max-width: 100%; height: auto; }
+        #status { margin-top: 15px; font-weight: 600; color: #444; min-height: 1.2em; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>ORLEN PACZKA</h2>
-        
-        <div id="camera-container">
-            <video id="video" playsinline autoplay></video>
-            <div class="overlay"></div>
-            <canvas id="canvas"></canvas>
-        </div>
+<div class="container">
+    <h2>Etykieta Pojedyncza</h2>
 
-        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-            <button id="btn-toggle-cam" class="btn-cam" onclick="toggleCamera()">📷 Kamera</button>
-            <button id="btn-snap" class="btn-snap" onclick="captureAndRead()">⚡ Czytaj</button>
-        </div>
+    <div id="camera-wrapper">
+        <video id="video" playsinline autoplay></video>
+        <div class="overlay"></div>
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Kamerę</button>
+    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Skanuj Kod</button>
 
-        <input type="text" id="ean-input" inputmode="numeric" placeholder="13 cyfr" maxlength="15" oninput="validateInput(this)">
-
-        <button class="btn-print" onclick="printToZebra()">🖨️ DRUKUJ ETYKIETĘ</button>
-        
-        <div id="status-msg">Gotowy do pracy</div>
-        
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
-        <svg id="barcode-preview"></svg>
+    <div class="input-group">
+        <label>NUMER PACZKI (EAN-13)</label>
+        <input type="text" id="ean-input" placeholder="Zeskanuj lub wpisz" maxlength="13">
     </div>
 
-    <script>
-        // --- KONFIGURACJA ZEBRA BLUETOOTH LE (Dla ZQ521 i nowszych) ---
-        // To są oficjalne identyfikatory usług Zebry (Link-OS)
-        const ZEBRA_SERVICE_UUID = '38eb4a80-c570-11e3-9507-0002a5d5c51b';
-        const ZEBRA_WRITE_CHAR_UUID = '38eb4a82-c570-11e3-9507-0002a5d5c51b';
+    <button class="btn-print" onclick="printLabel()">🖨️ DRUKUJ (XXRBN)</button>
+    
+    <div id="status">Gotowy.</div>
+</div>
 
-        let stream = null;
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const statusMsg = document.getElementById('status-msg');
+<script>
+    // --- KONFIGURACJA ---
+    const ZEBRA_SERVICE_UUID = '38eb4a80-c570-11e3-9507-0002a5d5c51b';
+    const ZEBRA_WRITE_CHAR_UUID = '38eb4a82-c570-11e3-9507-0002a5d5c51b';
+    const DEVICE_NAME_PREFIX = 'XXRBN'; // Filtr nazwy Twojej drukarki
+    const CHUNK_SIZE = 200; // Rozmiar paczki danych (stabilność)
 
-        // 1. KAMERA
-        async function toggleCamera() {
-            if (stream) {
-                stopCamera();
-            } else {
-                try {
-                    statusMsg.innerText = "Uruchamianie kamery...";
-                    stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
-                    });
-                    video.srcObject = stream;
-                    document.getElementById('camera-container').style.display = 'block';
-                    document.getElementById('btn-snap').style.display = 'block';
-                    document.getElementById('btn-toggle-cam').innerText = "❌ Zamknij";
-                    statusMsg.innerText = "Nakieruj cyfry w ramkę";
-                } catch (err) {
-                    alert("Nie można otworzyć kamery. Sprawdź uprawnienia w przeglądarce.");
-                }
-            }
-        }
+    // --- KAMERA ---
+    let stream = null;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const statusDiv = document.getElementById('status');
 
-        function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            document.getElementById('camera-container').style.display = 'none';
-            document.getElementById('btn-snap').style.display = 'none';
-            document.getElementById('btn-toggle-cam').innerText = "📷 Kamera";
-            statusMsg.innerText = "Kamera wyłączona";
-        }
-
-        // 2. OCR (Tesseract)
-        async function captureAndRead() {
-            if (!stream) return;
-            statusMsg.innerText = "⏳ Analizuję obraz...";
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+    async function toggleCamera() {
+        if (stream) {
+            stopCamera();
+        } else {
             try {
-                // Rozpoznaj tekst
-                const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
-                    // Optymalizacja: szukamy tylko cyfr, to bardzo przyspiesza działanie
-                    tessedit_char_whitelist: '0123456789' 
-                });
-
-                console.log("Odczytano:", text);
-                
-                // Szukamy ciągu 12 lub 13 cyfr
-                const match = text.match(/\d{12,13}/);
-                
-                if (match) {
-                    const code = match[0];
-                    document.getElementById('ean-input').value = code;
-                    validateInput(document.getElementById('ean-input'));
-                    statusMsg.innerText = "Sukces! Zeskanowano: " + code;
-                    stopCamera(); // Automatyczne zamknięcie po sukcesie
-                } else {
-                    statusMsg.innerText = "Nie widzę wyraźnych cyfr. Spróbuj ponownie.";
-                }
-            } catch (err) {
-                console.error(err);
-                statusMsg.innerText = "Błąd rozpoznawania.";
-            }
+                statusDiv.innerText = "Uruchamianie kamery...";
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                document.getElementById('camera-wrapper').style.display = 'block';
+                document.getElementById('btn-scan').style.display = 'block';
+                document.getElementById('btn-cam-toggle').innerText = "❌ Zamknij Kamerę";
+                statusDiv.innerText = "Nakieruj kod na ramkę";
+            } catch (err) { alert("Błąd kamery: " + err.message); }
         }
+    }
 
-        // 3. WALIDACJA I PODGLĄD
-        function validateInput(input) {
-            input.value = input.value.replace(/[^0-9]/g, ''); // Tylko cyfry
-            if (input.value.length >= 8) { // Generuj podgląd jeśli jest chociaż trochę cyfr
-                try {
-                    JsBarcode("#barcode-preview", input.value, {
-                        format: "EAN13", // Lub CODE128 jeśli wolisz
-                        flat: true, width: 2, height: 50, displayValue: true
-                    });
-                } catch (e) {}
+    function stopCamera() {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        document.getElementById('camera-wrapper').style.display = 'none';
+        document.getElementById('btn-scan').style.display = 'none';
+        document.getElementById('btn-cam-toggle').innerText = "📷 Włącz Kamerę";
+    }
+
+    async function captureAndRead() {
+        if (!stream) return;
+        statusDiv.innerText = "⏳ Odczytywanie...";
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        try {
+            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789' });
+            const match = text.match(/\d{12,13}/);
+            if (match) {
+                document.getElementById('ean-input').value = match[0];
+                statusDiv.innerText = `✅ Zeskanowano: ${match[0]}`;
+                stopCamera(); // Automatyczne zamknięcie po sukcesie
+            } else {
+                statusDiv.innerText = "⚠️ Nie widzę kodu. Spróbuj bliżej.";
             }
-        }
+        } catch (e) { statusDiv.innerText = "Błąd OCR"; }
+    }
 
-        // 4. DRUKOWANIE (Bluetooth)
-        // 4. DRUKOWANIE (Wersja: Widzę Wszystko)
-        async function printToZebra() {
-            const eanValue = document.getElementById('ean-input').value;
-            const statusMsg = document.getElementById('status-msg');
-            
-            if (eanValue.length < 12) {
-                alert("Wpisz poprawny numer (min. 12 cyfr)!");
-                return;
-            }
+    // --- DRUKOWANIE ---
+    async function printLabel() {
+        const ean = document.getElementById('ean-input').value;
+        if (ean.length < 12) { alert("Wpisz poprawny numer (min. 12 cyfr)!"); return; }
 
-            // Definicja usługi Zebry (konieczna do komunikacji PO połączeniu)
-            const ZEBRA_SERVICE_UUID = '38eb4a80-c570-11e3-9507-0002a5d5c51b';
-            const ZEBRA_WRITE_CHAR_UUID = '38eb4a82-c570-11e3-9507-0002a5d5c51b';
-
-            // Wymuszamy ZPL i ustawiamy etykietę
-            const zpl = `
+        // Szablon ZPL - Pojedyncza, duża etykieta na całą szerokość (4 cale / 832 dots)
+        const zpl = `
 ^XA
-^PW580
-^BY3,2,100
-^FT60,130^BEN,100,Y,N^FD${eanValue.substring(0,12)}^FS
-^FT0,260^A0N,35,35^FB550,1,0,C^FDORLEN PACZKA^FS
+^PW832
+^MD25
+^PR4
+
+^FX --- RAMKA ---
+^FO10,10^GB810,600,4^FS
+
+^FX --- NAGLOWEK ---
+^FO0,50^A0N,60,60^FB832,1,0,C^FDORLEN PACZKA^FS
+
+^FX --- KOD KRESKOWY (Duzy i wycentrowany) ---
+^FO116,160^BY4
+^BEN,200,Y,N
+^FD${ean.substring(0,12)}^FS
+
+^FX --- DODATKOWE INFO ---
+^FO0,450^A0N,40,40^FB832,1,0,C^FDEtykieta Logistyczna^FS
+
 ^XZ`;
 
-            try {
-                statusMsg.innerText = "Szukam urządzeń...";
-                
-                // --- ZMIANA: TRYB 'ACCEPT ALL' ---
-                // To pokaże WSZYSTKIE urządzenia Bluetooth w pobliżu.
-                // Wybierz z listy swoją Zebrę (może nazywać się 'XXJ21...' lub 'Zebra').
-                const device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [ZEBRA_SERVICE_UUID] 
-                });
+        try {
+            statusDiv.innerText = `🔍 Szukam urządzenia ${DEVICE_NAME_PREFIX}...`;
 
-                statusMsg.innerText = "Łączenie z " + device.name + "...";
-                
-                const server = await device.gatt.connect();
-                
-                // Pobieramy usługę (to może chwilę potrwać)
-                const service = await server.getPrimaryService(ZEBRA_SERVICE_UUID);
-                const characteristic = await service.getCharacteristic(ZEBRA_WRITE_CHAR_UUID);
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: DEVICE_NAME_PREFIX }],
+                optionalServices: [ZEBRA_SERVICE_UUID]
+            });
 
-                statusMsg.innerText = "Wysyłanie danych...";
-                
-                const encoder = new TextEncoder();
-                await characteristic.writeValue(encoder.encode(zpl));
+            statusDiv.innerText = "🔗 Łączenie...";
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(ZEBRA_SERVICE_UUID);
+            const characteristic = await service.getCharacteristic(ZEBRA_WRITE_CHAR_UUID);
 
-                statusMsg.innerText = "✅ Wydrukowano!";
-                
-                // Rozłącz po 2 sek
-                setTimeout(() => { if(device.gatt.connected) device.gatt.disconnect(); }, 2000);
+            statusDiv.innerText = "📡 Wysyłanie...";
+            const encoder = new TextEncoder();
+            const data = encoder.encode(zpl);
 
-            } catch (error) {
-                console.error(error);
-                // Obsługa typowych błędów
-                if (error.name === 'NotFoundError') {
-                    statusMsg.innerText = "Anulowano wybór.";
-                } else if (error.name === 'SecurityError') {
-                    statusMsg.innerText = "Błąd bezpieczeństwa (użyj HTTPS!)";
-                } else {
-                    statusMsg.innerText = "Błąd: " + error.message;
-                }
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                await characteristic.writeValue(data.slice(i, i + CHUNK_SIZE));
+                await new Promise(r => setTimeout(r, 20));
             }
+
+            statusDiv.innerText = "✅ Wydrukowano!";
+            setTimeout(() => { if (device.gatt.connected) device.gatt.disconnect(); }, 2000);
+
+        } catch (error) {
+            console.error(error);
+            statusDiv.innerText = error.name === 'NotFoundError' ? "❌ Nie znaleziono drukarki." : `❌ Błąd: ${error.message}`;
         }
-    </script>
+    }
+</script>
 </body>
 </html>
