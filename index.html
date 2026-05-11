@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator Etykiet APM</title>
+    <title>Generator etykiet</title>
     
     <!-- Biblioteki zewnętrzne -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -78,7 +78,7 @@
 <body>
 
 <div class="container">
-    <h2>Generator Etykiet APM</h2>
+    <h2>Generator EAN-13</h2>
 
     <div id="camera-wrapper">
         <video id="video" playsinline autoplay></video>
@@ -87,18 +87,17 @@
     <canvas id="canvas" style="display:none;"></canvas>
 
     <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Skaner (OCR)</button>
-    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Odczytaj tekst z ekranu</button>
+    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Odczytaj kod z ekranu</button>
 
     <div class="input-group">
-        <label>NUMER PACZKI</label>
-        <input type="tel" id="ean-input" placeholder="Wpisz lub zeskanuj" maxlength="24" oninput="checkAutoGenerate(this)">
+        <label>NUMER EAN-13</label>
+        <input type="tel" id="ean-input" placeholder="Wpisz 12 lub 13 cyfr" maxlength="13" oninput="validateEAN(this)">
     </div>
 
-    <button class="btn-gen" onclick="generateBarcodeImage()">Odśwież kod ręcznie</button>
+    <button class="btn-gen" onclick="generateBarcodeImage()">Generuj / Odśwież kod</button>
 
     <div id="result-container">
         <img id="generated-img" alt="Kod kreskowy" />
-        <!-- NOWY PRZYCISK UDOSTĘPNIANIA -->
         <button id="btn-share" class="btn-share" onclick="shareLabel()">🖨️ Drukuj (Udostępnij Zebrze)</button>
     </div>
     
@@ -107,26 +106,33 @@
 </div>
 
 <script>
-    let generatedBlob = null; // Zmienna globalna do przechowywania obrazka dla Web Share API
+    let generatedBlob = null; // Przechowuje wygenerowany obrazek dla Web Share API
 
-    // --- 1. AUTOMATYCZNE GENEROWANIE ---
-    function checkAutoGenerate(inputElement) {
+    // --- 1. WALIDACJA WEJŚCIA I AUTO-GENEROWANIE ---
+    function validateEAN(inputElement) {
+        // Brutalna walidacja: usuwa wszystko, co nie jest cyfrą (\D)
+        inputElement.value = inputElement.value.replace(/\D/g, '');
+
         const val = inputElement.value;
         const resultContainer = document.getElementById('result-container');
+        const shareBtn = document.getElementById('btn-share');
+        const statusMsg = document.getElementById('status');
         
-        // Zmieniono warunek, aby łapał różne długości numerów paczek (np. 10-24 cyfr)
-        if (val.length >= 10) {
+        // EAN-13 przyjmuje 12 (obliczy sumę) lub 13 cyfr
+        if (val.length === 12 || val.length === 13) {
             generateBarcodeImage();
         } else {
             resultContainer.style.display = 'none';
-            document.getElementById('btn-share').style.display = 'none';
+            if (shareBtn) shareBtn.style.display = 'none';
+            statusMsg.innerText = `Wpisano ${val.length}/13 cyfr...`;
+            statusMsg.style.color = "gray";
         }
     }
 
     // --- 2. GENEROWANIE OBRAZKA ---
     function generateBarcodeImage() {
         const ean = document.getElementById('ean-input').value;
-        if (ean.length < 10) return;
+        if (ean.length !== 12 && ean.length !== 13) return;
 
         const statusMsg = document.getElementById('status');
         statusMsg.innerText = "⏳ Generowanie etykiety...";
@@ -136,12 +142,12 @@
             const DPI = 203;
             const labelWidthPx = 4 * DPI;   
             const labelHeightPx = 6 * DPI;  
-            const targetBarcodeWidthInch = 3.0; 
+            const targetBarcodeWidthInch = 2.5; // Szerokość kodu w calach
             const targetBarcodeWidthPx = targetBarcodeWidthInch * DPI;
 
-            // Rysowanie bazowego kodu Code128 (lepszy dla numerów paczek niż EAN-13)
+            // Rysowanie ścisłego kodu EAN-13 na roboczym canvasie
             JsBarcode("#barcode-canvas", ean, {
-                format: "CODE128",
+                format: "EAN13",
                 width: 4,        
                 height: 150,     
                 displayValue: true,
@@ -156,62 +162,67 @@
             mainCanvas.height = labelHeightPx;
             const ctx = mainCanvas.getContext('2d');
 
+            // Tło etykiety
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, labelWidthPx, labelHeightPx);
 
+            // Obliczenia proporcji i centrowanie
             const tempCanvas = document.getElementById('barcode-canvas');
             const aspectRatio = tempCanvas.height / tempCanvas.width;
             const targetHeightPx = targetBarcodeWidthPx * aspectRatio;
             const destX = (labelWidthPx - targetBarcodeWidthPx) / 2;
-            const destY = 150;
+            const destY = 150; // Margines od góry
 
+            // Rysowanie na głównej etykiecie
             ctx.drawImage(tempCanvas, destX, destY, targetBarcodeWidthPx, targetHeightPx);
 
-            // Zapis do obrazka i wyświetlenie
+            // Wyświetlenie wyniku w interfejsie
             const imgData = mainCanvas.toDataURL("image/png");
             document.getElementById('generated-img').src = imgData;
             document.getElementById('result-container').style.display = 'flex'; 
-            document.getElementById('btn-share').style.display = 'block'; // Pokaż przycisk druku
+            document.getElementById('btn-share').style.display = 'block'; 
             
-            // Konwersja canvasu na Blob, aby Web Share API mogło go wysłać jako plik
+            // Konwersja na Blob dla funkcji Share
             mainCanvas.toBlob((blob) => {
                 generatedBlob = blob;
             }, "image/png");
 
             statusMsg.innerText = "✅ Etykieta gotowa!";
             statusMsg.style.color = "green";
-            document.getElementById('ean-input').blur();
+            document.getElementById('ean-input').blur(); // Schowaj klawiaturę
 
         } catch (e) {
             console.error(e);
-            statusMsg.innerText = "⚠️ Błąd generowania.";
+            // Wyłapuje błąd błędnej sumy kontrolnej EAN-13 z biblioteki JsBarcode
+            statusMsg.innerText = "⚠️ Błąd sumy kontrolnej EAN-13.";
             statusMsg.style.color = "red";
+            document.getElementById('result-container').style.display = 'none';
+            document.getElementById('btn-share').style.display = 'none';
         }
     }
 
     // --- 3. WEB SHARE API (DRUKOWANIE) ---
     async function shareLabel() {
         if (!generatedBlob) {
-            alert("Błąd: Obrazek nie został jeszcze wygenerowany.");
+            alert("Błąd: Obrazek nie został wygenerowany.");
             return;
         }
 
-        const file = new File([generatedBlob], "etykieta_apm.png", { type: "image/png" });
+        const file = new File([generatedBlob], "etykieta_ean13.png", { type: "image/png" });
 
-        // Sprawdzenie, czy przeglądarka wspiera wysyłanie plików
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
                 await navigator.share({
-                    title: 'Etykieta APM',
-                    text: 'Wydrukuj etykietę',
+                    title: 'Wydruk EAN-13',
+                    text: 'Etykieta gotowa do druku',
                     files: [file]
                 });
-                document.getElementById('status').innerText = "📤 Wysłano do udostępniania.";
+                document.getElementById('status').innerText = "📤 Otwarto opcje druku.";
             } catch (err) {
-                console.log("Anulowano udostępnianie lub błąd:", err);
+                console.log("Anulowano:", err);
             }
         } else {
-            alert("Twoja przeglądarka nie wspiera Web Share API dla plików. Użyj nowej wersji Chrome na Androidzie.");
+            alert("Przeglądarka nie wspiera Web Share API dla plików.");
         }
     }
 
@@ -235,7 +246,7 @@
                 camWrapper.style.display = 'block';
                 btnScan.style.display = 'block';
                 btnToggle.innerText = "❌ Zamknij Kamerę";
-                statusDiv.innerText = "Nakieruj na numer i kliknij Odczytaj.";
+                statusDiv.innerText = "Nakieruj na 12/13 cyfr i kliknij Odczytaj.";
             } catch (err) { alert("Błąd kamery: " + err.message); }
         }
     }
@@ -250,7 +261,7 @@
 
     async function captureAndRead() {
         if (!stream) return;
-        statusDiv.innerText = "🧠 Analizowanie obrazu (Tesseract)... To może chwilę potrwać.";
+        statusDiv.innerText = "🧠 Analizowanie obrazu...";
         statusDiv.style.color = "orange";
         
         canvas.width = video.videoWidth;
@@ -258,18 +269,19 @@
         canvas.getContext('2d').drawImage(video, 0, 0);
 
         try {
-            // whitelist ustawiony na cyfry i duże litery, by łapać pełne numery APM
-            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ' });
+            // Wymuszamy na silniku OCR szukanie wyłącznie cyfr
+            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789' });
             
-            // Regex szukający ciągu znaków od 10 do 24 długości (odporniejszy na śmieci)
-            const match = text.replace(/\s+/g, '').match(/[A-Z0-9]{10,24}/);
+            // Regex wyciągający wyłącznie ciąg 12 lub 13 cyfr z odczytanego tekstu
+            const match = text.replace(/\D/g, '').match(/\d{12,13}/);
             
             if (match) {
-                document.getElementById('ean-input').value = match[0];
+                const inputEl = document.getElementById('ean-input');
+                inputEl.value = match[0];
                 stopCamera();
-                generateBarcodeImage(); 
+                validateEAN(inputEl); // Puszczenie przez walidator (auto-generowanie)
             } else {
-                statusDiv.innerText = "⚠️ Nie wykryto numeru. Spróbuj zmienić kąt.";
+                statusDiv.innerText = "⚠️ Nie znaleziono kodu EAN na zdjęciu.";
                 statusDiv.style.color = "red";
             }
         } catch (e) { 
