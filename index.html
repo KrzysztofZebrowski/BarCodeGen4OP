@@ -3,46 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator etykiet</title>
+    <title>Generator Etykiet APM</title>
     
+    <!-- Biblioteki zewnętrzne -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     
     <style>
-        :root { --orlen-red: #d32f2f; --dark: #222; --light: #f4f4f4; }
+        :root { --orlen-red: #d32f2f; --dark: #222; --light: #f4f4f4; --success: #4CAF50; --blue: #2196F3; }
         body { 
             font-family: 'Segoe UI', sans-serif; 
             background: var(--light); 
-            margin: 0; 
-            padding: 15px; 
+            margin: 0; padding: 15px; 
             text-align: center; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            display: flex; flex-direction: column; align-items: center;
         }
-        
         .container { 
-            width: 100%; 
-            max-width: 450px; 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            width: 100%; max-width: 450px; 
+            background: white; padding: 20px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
             box-sizing: border-box;
         }
-        
         h2 { color: var(--orlen-red); margin-top: 0; margin-bottom: 20px; text-transform: uppercase; }
 
         /* KAMERA */
         #camera-wrapper { 
-            display: none; 
-            position: relative; 
-            margin-bottom: 15px; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            background: #000; 
-            height: 180px; 
-            width: 100%;
+            display: none; position: relative; margin-bottom: 15px; 
+            border-radius: 8px; overflow: hidden; background: #000; 
+            height: 180px; width: 100%;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         .overlay { 
@@ -54,84 +42,43 @@
         /* INPUT */
         .input-group { margin: 15px 0; width: 100%; }
         label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
-        
         input { 
             width: 100%; padding: 15px; font-size: 1.6rem; 
             border: 3px solid #ddd; border-radius: 8px; box-sizing: border-box; 
             text-align: center; font-weight: bold; letter-spacing: 3px;
-            transition: border-color 0.3s;
         }
         input:focus { outline: none; border-color: var(--orlen-red); background: #fffdfd; }
 
         /* PRZYCISKI */
         button { 
-            width: 100%; padding: 12px; border: none; border-radius: 8px; 
-            font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 8px; 
+            width: 100%; padding: 15px; border: none; border-radius: 8px; 
+            font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; 
             transition: 0.2s; 
         }
         .btn-cam { background: var(--dark); color: white; }
         .btn-scan { background: #2a9d8f; color: white; display: none; }
-        .btn-gen { background: #555; color: white; font-size: 0.9rem; margin-top: 5px; opacity: 0.8; }
-
-        /* PRZYCISK INSTRUKCJI */
-        .btn-inst {
-            background: var(--orlen-red);
-            color: white;
-            margin-top: 30px; 
-            font-size: 1.1rem;
-            padding: 15px;
-            box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
-        }
-        .btn-inst:active { background: #b71c1c; }
+        .btn-gen { background: #555; color: white; font-size: 0.9rem; padding: 10px; }
+        .btn-share { background: var(--blue); color: white; font-size: 1.2rem; display: none; margin-top: 15px; box-shadow: 0 4px 10px rgba(33, 150, 243, 0.3); }
+        .btn-share:active { background: #1976D2; }
 
         /* WYNIK */
         #result-container {
-            margin-top: 20px;
-            padding: 10px;
-            border: 2px dashed #ccc;
-            border-radius: 10px;
-            background: #fff;
-            display: none; 
-            animation: fadeIn 0.5s ease;
-
-            /* Układ pionowy */
-            flex-direction: column; 
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            margin-top: 20px; padding: 15px; border: 2px dashed #ccc; 
+            border-radius: 10px; background: #fff; display: none; 
+            flex-direction: column; align-items: center; justify-content: center;
         }
-        
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
         #generated-img {
-            display: block;
-            margin-top: 10px;
-            
-            max-width: 100%;
-            height: auto;
-
-            border: 1px solid #eee;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-
-            /* jakaś nowość */
-            border-radius: 8px;
+            max-width: 100%; height: auto; border: 1px solid #eee; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-radius: 8px;
         }
-        
-        .hint { 
-            font-size: 0.9rem; 
-            color: #d32f2f; 
-            margin-bottom: 5px; 
-            font-weight: 700; 
-            text-align: center;
-            width: 100%;
-        }
+        .status { margin-top: 10px; color: #888; font-size: 0.9rem; font-weight: bold; }
         #barcode-canvas { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Generator Etykiet</h2>
+    <h2>Generator Etykiet APM</h2>
 
     <div id="camera-wrapper">
         <video id="video" playsinline autoplay></video>
@@ -139,125 +86,136 @@
     </div>
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Skanuj Kamerą</button>
-    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Zrób zdjęcie</button>
+    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Skaner (OCR)</button>
+    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Odczytaj tekst z ekranu</button>
 
     <div class="input-group">
-        <label>WPISZ NUMER PACZKI</label>
-        <input type="tel" id="ean-input" placeholder="Numer paczki" maxlength="13" oninput="checkAutoGenerate(this)">
+        <label>NUMER PACZKI</label>
+        <input type="tel" id="ean-input" placeholder="Wpisz lub zeskanuj" maxlength="24" oninput="checkAutoGenerate(this)">
     </div>
+
+    <button class="btn-gen" onclick="generateBarcodeImage()">Odśwież kod ręcznie</button>
 
     <div id="result-container">
-        <div class="hint">👇 Przytrzymaj obrazek i Udostępnij 👇</div>
         <img id="generated-img" alt="Kod kreskowy" />
+        <!-- NOWY PRZYCISK UDOSTĘPNIANIA -->
+        <button id="btn-share" class="btn-share" onclick="shareLabel()">🖨️ Drukuj (Udostępnij Zebrze)</button>
     </div>
     
-    <button class="btn-gen" onclick="generateBarcodeImage()">Odśwież kod ręcznie</button>
-    
-    <div id="status" style="margin-top: 15px; color: #888; font-size: 0.8rem;">Gotowy.</div>
-
-    <button class="btn-inst" onclick="openInstruction()">INSTRUKCJA PDF (WIP)</button>
-
+    <div id="status" class="status">Gotowy do pracy.</div>
     <canvas id="barcode-canvas"></canvas>
 </div>
 
 <script>
+    let generatedBlob = null; // Zmienna globalna do przechowywania obrazka dla Web Share API
+
     // --- 1. AUTOMATYCZNE GENEROWANIE ---
     function checkAutoGenerate(inputElement) {
         const val = inputElement.value;
         const resultContainer = document.getElementById('result-container');
         
-        // EAN-13 ma 12 (bez sumy kontrolnej) lub 13 cyfr.
-        // Jeśli użytkownik wpisze 12 lub 13 cyfr, generujemy.
-        if (val.length === 12 || val.length === 13) {
+        // Zmieniono warunek, aby łapał różne długości numerów paczek (np. 10-24 cyfr)
+        if (val.length >= 10) {
             generateBarcodeImage();
-        } else if (val.length < 12) {
-            // Jeśli użytkownik kasuje cyfry, ukrywamy wynik, żeby nie mylić
+        } else {
             resultContainer.style.display = 'none';
+            document.getElementById('btn-share').style.display = 'none';
         }
     }
 
     // --- 2. GENEROWANIE OBRAZKA ---
-    // --- FUNKCJA GENEROWANIA ---
     function generateBarcodeImage() {
         const ean = document.getElementById('ean-input').value;
-        
-        // Walidacja długości (12 lub 13 cyfr)
-        if (ean.length !== 12 && ean.length !== 13) return;
+        if (ean.length < 10) return;
 
         const statusMsg = document.getElementById('status');
-        statusMsg.innerText = "Generowanie etykiety...";
+        statusMsg.innerText = "⏳ Generowanie etykiety...";
+        statusMsg.style.color = "orange";
 
         try {
-            // --- KONFIGURACJA WYMIARÓW ---
-            const DPI = 203; // Rozdzielczość drukarki
-            
-            // Wymiary całej etykiety (4x6 cali)
-            const labelWidthPx = 4 * DPI;   // 812 px
-            const labelHeightPx = 6 * DPI;  // 1218 px
+            const DPI = 203;
+            const labelWidthPx = 4 * DPI;   
+            const labelHeightPx = 6 * DPI;  
+            const targetBarcodeWidthInch = 3.0; 
+            const targetBarcodeWidthPx = targetBarcodeWidthInch * DPI;
 
-            // --- ZMIANA TUTAJ: ZMNIEJSZENIE KODU ---
-            // Było 3, zmieniamy na 2 cale.
-            const targetBarcodeWidthInch = 2.0; 
-            const targetBarcodeWidthPx = targetBarcodeWidthInch * DPI; // ok. 406 px
-
-            // 1. Generujemy kod źródłowy na ukrytym canvasie
-            // Generujemy go w wysokiej jakości, żeby po zmniejszeniu był ostry
+            // Rysowanie bazowego kodu Code128 (lepszy dla numerów paczek niż EAN-13)
             JsBarcode("#barcode-canvas", ean, {
-                format: "EAN13",
+                format: "CODE128",
                 width: 4,        
-                height: 150,     // Wysokość źródłowa
+                height: 150,     
                 displayValue: true,
                 fontSize: 40,
-                margin: 0,       // Margines zerowy (dodamy go pozycjonowaniem)
+                margin: 0,       
                 background: "#ffffff",
                 lineColor: "#000000"
             });
 
-            // 2. Przygotowujemy główny canvas (Cała Etykieta)
             const mainCanvas = document.createElement('canvas');
             mainCanvas.width = labelWidthPx;
             mainCanvas.height = labelHeightPx;
             const ctx = mainCanvas.getContext('2d');
 
-            // Wypełnienie tła bielą
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, labelWidthPx, labelHeightPx);
 
-            // 3. Obliczamy pozycję i skalowanie
             const tempCanvas = document.getElementById('barcode-canvas');
-            
-            // Zachowujemy proporcje kodu
             const aspectRatio = tempCanvas.height / tempCanvas.width;
             const targetHeightPx = targetBarcodeWidthPx * aspectRatio;
-
-            // Centrowanie w poziomie: (Szerokość Etykiety - Szerokość Kodu) / 2
             const destX = (labelWidthPx - targetBarcodeWidthPx) / 2;
-            
-            // Pozycja od góry (np. 50px marginesu górnego)
-            const destY = 130;
+            const destY = 150;
 
-            // 4. Rysujemy kod na etykiecie
-            // ctx.drawImage(źródło, x, y, szerokość, wysokość)
             ctx.drawImage(tempCanvas, destX, destY, targetBarcodeWidthPx, targetHeightPx);
 
-            // 5. Wyświetlanie wyniku
+            // Zapis do obrazka i wyświetlenie
             const imgData = mainCanvas.toDataURL("image/png");
-            const imgElement = document.getElementById('generated-img');
-            
-            imgElement.src = imgData;
+            document.getElementById('generated-img').src = imgData;
             document.getElementById('result-container').style.display = 'flex'; 
+            document.getElementById('btn-share').style.display = 'block'; // Pokaż przycisk druku
             
+            // Konwersja canvasu na Blob, aby Web Share API mogło go wysłać jako plik
+            mainCanvas.toBlob((blob) => {
+                generatedBlob = blob;
+            }, "image/png");
+
             statusMsg.innerText = "✅ Etykieta gotowa!";
+            statusMsg.style.color = "green";
             document.getElementById('ean-input').blur();
 
         } catch (e) {
             console.error(e);
             statusMsg.innerText = "⚠️ Błąd generowania.";
+            statusMsg.style.color = "red";
         }
     }
 
-    // --- 3. KAMERA I OCR ---
+    // --- 3. WEB SHARE API (DRUKOWANIE) ---
+    async function shareLabel() {
+        if (!generatedBlob) {
+            alert("Błąd: Obrazek nie został jeszcze wygenerowany.");
+            return;
+        }
+
+        const file = new File([generatedBlob], "etykieta_apm.png", { type: "image/png" });
+
+        // Sprawdzenie, czy przeglądarka wspiera wysyłanie plików
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    title: 'Etykieta APM',
+                    text: 'Wydrukuj etykietę',
+                    files: [file]
+                });
+                document.getElementById('status').innerText = "📤 Wysłano do udostępniania.";
+            } catch (err) {
+                console.log("Anulowano udostępnianie lub błąd:", err);
+            }
+        } else {
+            alert("Twoja przeglądarka nie wspiera Web Share API dla plików. Użyj nowej wersji Chrome na Androidzie.");
+        }
+    }
+
+    // --- 4. KAMERA I OCR ---
     let stream = null;
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -276,9 +234,9 @@
                 video.srcObject = stream;
                 camWrapper.style.display = 'block';
                 btnScan.style.display = 'block';
-                btnToggle.innerText = "❌ Zamknij";
-                statusDiv.innerText = "Skanuj kod...";
-            } catch (err) { alert("Błąd: " + err.message); }
+                btnToggle.innerText = "❌ Zamknij Kamerę";
+                statusDiv.innerText = "Nakieruj na numer i kliknij Odczytaj.";
+            } catch (err) { alert("Błąd kamery: " + err.message); }
         }
     }
 
@@ -287,39 +245,37 @@
         stream = null;
         camWrapper.style.display = 'none';
         btnScan.style.display = 'none';
-        btnToggle.innerText = "📷 Skanuj Kamerą";
+        btnToggle.innerText = "📷 Włącz Skaner (OCR)";
     }
 
     async function captureAndRead() {
         if (!stream) return;
-        statusDiv.innerText = "Analizowanie...";
+        statusDiv.innerText = "🧠 Analizowanie obrazu (Tesseract)... To może chwilę potrwać.";
+        statusDiv.style.color = "orange";
+        
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0);
 
         try {
-            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789' });
-            const match = text.match(/\d{12,13}/);
+            // whitelist ustawiony na cyfry i duże litery, by łapać pełne numery APM
+            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ' });
+            
+            // Regex szukający ciągu znaków od 10 do 24 długości (odporniejszy na śmieci)
+            const match = text.replace(/\s+/g, '').match(/[A-Z0-9]{10,24}/);
+            
             if (match) {
                 document.getElementById('ean-input').value = match[0];
                 stopCamera();
-                generateBarcodeImage(); // Auto-generowanie po skanie
+                generateBarcodeImage(); 
             } else {
-                statusDiv.innerText = "⚠️ Nie wykryto kodu. Spróbuj bliżej.";
+                statusDiv.innerText = "⚠️ Nie wykryto numeru. Spróbuj zmienić kąt.";
+                statusDiv.style.color = "red";
             }
-        } catch (e) { statusDiv.innerText = "Błąd OCR"; }
-    }
-
-    // --- Otwieranie instrukcji ---
-    function openInstruction() {
-        
-        
-        // Otwiera plik instrukcja.pdf w nowej karcie
-        // Upewnij się, że wgrasz taki plik na GitHuba!
-        
-        // WIP
-        alert("PDF w fazie tworzenia :)")
-        // window.open('instrukcja.pdf', '_blank');
+        } catch (e) { 
+            statusDiv.innerText = "Błąd OCR: " + e.message; 
+            statusDiv.style.color = "red";
+        }
     }
 </script>
 
