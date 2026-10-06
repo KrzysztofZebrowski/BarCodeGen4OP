@@ -1,295 +1,211 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator etykiet</title>
-    
-    <!-- Biblioteki zewnętrzne -->
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-    
-    <style>
-        :root { --orlen-red: #d32f2f; --dark: #222; --light: #f4f4f4; --success: #4CAF50; --blue: #2196F3; }
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: var(--light); 
-            margin: 0; padding: 15px; 
-            text-align: center; 
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .container { 
-            width: 100%; max-width: 450px; 
-            background: white; padding: 20px; 
-            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            box-sizing: border-box;
-        }
-        h2 { color: var(--orlen-red); margin-top: 0; margin-bottom: 20px; text-transform: uppercase; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#e11a27">
+  <meta name="description" content="Generator etykiet kodów kreskowych EAN-13 / Code 128 (Zebra 203 DPI) z dynamicznym skanerem kodów QR i kreskowych z kamery.">
+  <title>BarCodeGen 4OP - Skaner QR & Generator Kodów Zebra</title>
 
-        /* KAMERA */
-        #camera-wrapper { 
-            display: none; position: relative; margin-bottom: 15px; 
-            border-radius: 8px; overflow: hidden; background: #000; 
-            height: 180px; width: 100%;
-        }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .overlay { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 80%; height: 60px; border: 2px solid rgba(211, 47, 47, 0.8); 
-            box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.6); 
-        }
+  <link rel="stylesheet" href="styles.css">
 
-        /* INPUT */
-        .input-group { margin: 15px 0; width: 100%; }
-        label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
-        input { 
-            width: 100%; padding: 15px; font-size: 1.6rem; 
-            border: 3px solid #ddd; border-radius: 8px; box-sizing: border-box; 
-            text-align: center; font-weight: bold; letter-spacing: 3px;
-        }
-        input:focus { outline: none; border-color: var(--orlen-red); background: #fffdfd; }
+  <script src="vendor/html5-qrcode.min.js"></script>
+  <script>
+    if (typeof Html5Qrcode === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"><\/script>');
+    }
+  </script>
 
-        /* PRZYCISKI */
-        button { 
-            width: 100%; padding: 15px; border: none; border-radius: 8px; 
-            font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; 
-            transition: 0.2s; 
-        }
-        .btn-cam { background: var(--dark); color: white; }
-        .btn-scan { background: #2a9d8f; color: white; display: none; }
-        .btn-gen { background: #555; color: white; font-size: 0.9rem; padding: 10px; }
-        .btn-share { background: var(--blue); color: white; font-size: 1.2rem; display: none; margin-top: 15px; box-shadow: 0 4px 10px rgba(33, 150, 243, 0.3); }
-        .btn-share:active { background: #1976D2; }
-
-        /* WYNIK */
-        #result-container {
-            margin-top: 20px; padding: 15px; border: 2px dashed #ccc; 
-            border-radius: 10px; background: #fff; display: none; 
-            flex-direction: column; align-items: center; justify-content: center;
-        }
-        #generated-img {
-            max-width: 100%; height: auto; border: 1px solid #eee; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-radius: 8px;
-        }
-        .status { margin-top: 10px; color: #888; font-size: 0.9rem; font-weight: bold; }
-        #barcode-canvas { display: none; }
-    </style>
+  <script src="vendor/jsbarcode.all.min.js"></script>
+  <script>
+    if (typeof JsBarcode === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
 
-<div class="container">
-    <h2>Generator EAN-13</h2>
+  <div class="app-wrapper">
 
-    <div id="camera-wrapper">
-        <video id="video" playsinline autoplay></video>
-        <div class="overlay"></div>
-    </div>
-    <canvas id="canvas" style="display:none;"></canvas>
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-icon">OP</div>
+        <div class="brand-info">
+          <h1>BarCodeGen 4OP</h1>
+          <p>Skaner QR & Generator Etykiet Zebra (203 DPI)</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-sound-toggle" class="btn-icon active" title="Dźwięk skanera (Włączony)">🔊</button>
+        <button id="btn-vibrate-toggle" class="btn-icon active" title="Wibracja po skanie (Włączona)">📳</button>
+        <button id="btn-theme-toggle" class="btn-icon" title="Przełącz motyw (Ciemny/Jasny)">🌙</button>
+      </div>
+    </header>
 
-    <button id="btn-cam-toggle" class="btn-cam" onclick="toggleCamera()">📷 Włącz Skaner (OCR)</button>
-    <button id="btn-scan" class="btn-scan" onclick="captureAndRead()">⚡ Odczytaj kod z ekranu</button>
+    <section class="card">
+      <div class="card-title-row">
+        <div class="card-title">
+          <span>📷</span>
+          <span>Dynamiczny Skaner</span>
+        </div>
+        <span class="badge badge-success">Live 60 FPS</span>
+      </div>
 
-    <div class="input-group">
-        <label>NUMER EAN-13</label>
-        <input type="tel" id="ean-input" placeholder="Wpisz 12 lub 13 cyfr" maxlength="13" oninput="validateEAN(this)">
-    </div>
+      <div class="scanner-trigger-bar">
+        <button id="btn-start-camera" class="btn-scanner-toggle">
+          <span>📷</span>
+          <span>Uruchom Skaner Kamery</span>
+        </button>
+        <button id="btn-trigger-file" class="btn-file-scan" title="Wczytaj zdjęcie z kodem z galerii lub pliku">
+          <span>🖼️</span>
+          <span>Z pliku</span>
+        </button>
+        <input type="file" id="file-scan-input" accept="image/*" style="display:none;">
+      </div>
 
-    <button class="btn-gen" onclick="generateBarcodeImage()">Generuj / Odśwież kod</button>
+      <div id="scanner-container" class="camera-container">
+        <div id="scanner-viewport"></div>
 
-    <div id="result-container">
-        <img id="generated-img" alt="Kod kreskowy" />
-        <button id="btn-share" class="btn-share" onclick="shareLabel()">🖨️ Drukuj (Udostępnij Zebrze)</button>
-    </div>
-    
-    <div id="status" class="status">Gotowy do pracy.</div>
-    <canvas id="barcode-canvas"></canvas>
-</div>
+        <div class="scanner-hud">
+          <div class="scanner-top-bar">
+            <div class="scanner-status-pill">
+              <span id="scanner-status-dot" class="status-dot"></span>
+              <span id="scanner-status-text">Szukanie kodu...</span>
+            </div>
+            <div class="scanner-controls">
+              <button id="btn-toggle-torch" class="scanner-ctrl-btn" title="Latarka / Flesz">⚡</button>
+              <button id="btn-switch-camera" class="scanner-ctrl-btn" style="display:none;" title="Przełącz aparat">🔄</button>
+              <button id="btn-close-camera" class="scanner-ctrl-btn" title="Zamknij kamerę">✕</button>
+            </div>
+          </div>
 
-<script>
-    let generatedBlob = null; // Przechowuje wygenerowany obrazek dla Web Share API
+          <div id="scanner-target-box" class="scanner-target-box">
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            <div class="scanner-laser"></div>
+          </div>
 
-    // --- 1. WALIDACJA WEJŚCIA I AUTO-GENEROWANIE ---
-    function validateEAN(inputElement) {
-        // Brutalna walidacja: usuwa wszystko, co nie jest cyfrą (\D)
-        inputElement.value = inputElement.value.replace(/\D/g, '');
+          <div class="scanner-hint">
+            Nakieruj celownik na kod QR lub kod kreskowy
+          </div>
+        </div>
+      </div>
+    </section>
 
-        const val = inputElement.value;
-        const resultContainer = document.getElementById('result-container');
-        const shareBtn = document.getElementById('btn-share');
-        const statusMsg = document.getElementById('status');
-        
-        // EAN-13 przyjmuje 12 (obliczy sumę) lub 13 cyfr
-        if (val.length === 12 || val.length === 13) {
-            generateBarcodeImage();
-        } else {
-            resultContainer.style.display = 'none';
-            if (shareBtn) shareBtn.style.display = 'none';
-            statusMsg.innerText = `Wpisano ${val.length}/13 cyfr...`;
-            statusMsg.style.color = "gray";
-        }
-    }
+    <section class="card">
+      <div class="input-header">
+        <label for="main-input">Numer kodu / Treść</label>
+        <div class="format-selector-row">
+          <button class="btn-format active" data-format="AUTO">Auto</button>
+          <button class="btn-format" data-format="EAN13">EAN-13</button>
+          <button class="btn-format" data-format="CODE128">Code 128</button>
+          <button class="btn-format" data-format="EAN8">EAN-8</button>
+        </div>
+      </div>
 
-    // --- 2. GENEROWANIE OBRAZKA ---
-    function generateBarcodeImage() {
-        const ean = document.getElementById('ean-input').value;
-        if (ean.length !== 12 && ean.length !== 13) return;
+      <div class="input-wrapper">
+        <input 
+          type="text" 
+          id="main-input" 
+          class="main-input" 
+          placeholder="Zeskanuj lub wpisz..." 
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <div class="input-actions">
+          <button id="btn-paste-input" class="btn-input-action" title="Wklej ze schowka">📋</button>
+          <button id="btn-clear-input" class="btn-input-action" title="Wyczyść pole">✕</button>
+        </div>
+      </div>
 
-        const statusMsg = document.getElementById('status');
-        statusMsg.innerText = "⏳ Generowanie etykiety...";
-        statusMsg.style.color = "orange";
+      <div class="input-info-row">
+        <span id="input-status-msg">Wpisz lub zeskanuj kod...</span>
+        <span id="checksum-info" class="checksum-info"></span>
+      </div>
 
-        try {
-            const DPI = 203;
-            const labelWidthPx = 4 * DPI;   
-            const labelHeightPx = 6 * DPI;  
-            const targetBarcodeWidthInch = 2.5; // Szerokość kodu w calach
-            const targetBarcodeWidthPx = targetBarcodeWidthInch * DPI;
+      <div class="quick-samples">
+        <span>Przykłady:</span>
+        <span class="sample-chip" data-sample="5901234123457">5901234123457 (EAN)</span>
+        <span class="sample-chip" data-sample="OP1234567890PL">OP1234567890PL</span>
+      </div>
+    </section>
 
-            // Rysowanie ścisłego kodu EAN-13 na roboczym canvasie
-            JsBarcode("#barcode-canvas", ean, {
-                format: "EAN13",
-                width: 4,        
-                height: 150,     
-                displayValue: true,
-                fontSize: 40,
-                margin: 0,       
-                background: "#ffffff",
-                lineColor: "#000000"
-            });
+    <section id="result-card" class="card result-card">
+      <div class="card-title-row">
+        <div class="card-title">
+          <span>📊</span>
+          <span>Wygenerowany Kod Kreskowy</span>
+        </div>
+        <span id="badge-format" class="badge badge-primary">EAN-13</span>
+      </div>
 
-            const mainCanvas = document.createElement('canvas');
-            mainCanvas.width = labelWidthPx;
-            mainCanvas.height = labelHeightPx;
-            const ctx = mainCanvas.getContext('2d');
+      <div class="preview-container">
+        <svg id="barcode-svg"></svg>
+        <div class="barcode-meta-badge">
+          <div class="meta-item">
+            <span>Kod:</span>
+            <strong id="meta-code-val"></strong>
+          </div>
+          <div class="meta-item">
+            <span>Zebra:</span>
+            <span>203 DPI</span>
+          </div>
+        </div>
+      </div>
 
-            // Tło etykiety
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, labelWidthPx, labelHeightPx);
+      <canvas id="zebra-canvas"></canvas>
+      <canvas id="temp-barcode-canvas"></canvas>
 
-            // Obliczenia proporcji i centrowanie
-            const tempCanvas = document.getElementById('barcode-canvas');
-            const aspectRatio = tempCanvas.height / tempCanvas.width;
-            const targetHeightPx = targetBarcodeWidthPx * aspectRatio;
-            const destX = (labelWidthPx - targetBarcodeWidthPx) / 2;
-            const destY = 150; // Margines od góry
+      <div class="action-grid">
+        <button id="btn-share-zebra" class="btn-action btn-primary-action">
+          <span>🖨️</span>
+          <span>Drukuj / Udostępnij Zebrze</span>
+        </button>
+        <button id="btn-download-png" class="btn-action btn-secondary-action">
+          <span>💾</span>
+          <span>Pobierz PNG (203 DPI)</span>
+        </button>
+        <button id="btn-copy-code" class="btn-action btn-secondary-action">
+          <span>📋</span>
+          <span>Kopiuj numer</span>
+        </button>
+        <button id="btn-print-direct" class="btn-action btn-secondary-action">
+          <span>🖨️</span>
+          <span>Drukuj w przeglądarce</span>
+        </button>
+      </div>
+    </section>
 
-            // Rysowanie na głównej etykiecie
-            ctx.drawImage(tempCanvas, destX, destY, targetBarcodeWidthPx, targetHeightPx);
+    <section class="card history-card">
+      <div class="history-header">
+        <div class="card-title">
+          <span>⏱️</span>
+          <span>Historia kodów</span>
+        </div>
+        <span id="history-count-badge" class="history-count-badge">0/10</span>
+      </div>
 
-            // Wyświetlenie wyniku w interfejsie
-            const imgData = mainCanvas.toDataURL("image/png");
-            document.getElementById('generated-img').src = imgData;
-            document.getElementById('result-container').style.display = 'flex'; 
-            document.getElementById('btn-share').style.display = 'block'; 
-            
-            // Konwersja na Blob dla funkcji Share
-            mainCanvas.toBlob((blob) => {
-                generatedBlob = blob;
-            }, "image/png");
+      <ul id="history-list" class="history-list"></ul>
 
-            statusMsg.innerText = "✅ Etykieta gotowa!";
-            statusMsg.style.color = "green";
-            document.getElementById('ean-input').blur(); // Schowaj klawiaturę
+      <div id="history-empty-state" class="history-empty-state">
+        <div class="history-empty-icon">📭</div>
+        <p>Brak zapisanych kodów.</p>
+        <small>Zeskanuj kod z kamery lub wpisz ręcznie, aby pojawił się na liście ostatnich 10 kodów.</small>
+      </div>
 
-        } catch (e) {
-            console.error(e);
-            // Wyłapuje błąd błędnej sumy kontrolnej EAN-13 z biblioteki JsBarcode
-            statusMsg.innerText = "⚠️ Błąd sumy kontrolnej EAN-13.";
-            statusMsg.style.color = "red";
-            document.getElementById('result-container').style.display = 'none';
-            document.getElementById('btn-share').style.display = 'none';
-        }
-    }
+      <button id="btn-clear-history" class="btn-clear-history" style="display:none;">
+        <span>🗑️</span>
+        <span>Wyczyść całą historię</span>
+      </button>
+    </section>
 
-    // --- 3. WEB SHARE API (DRUKOWANIE) ---
-    async function shareLabel() {
-        if (!generatedBlob) {
-            alert("Błąd: Obrazek nie został wygenerowany.");
-            return;
-        }
+  </div>
 
-        const file = new File([generatedBlob], "etykieta_ean13.png", { type: "image/png" });
+  <div id="toast-container"></div>
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    title: 'Wydruk EAN-13',
-                    text: 'Etykieta gotowa do druku',
-                    files: [file]
-                });
-                document.getElementById('status').innerText = "📤 Otwarto opcje druku.";
-            } catch (err) {
-                console.log("Anulowano:", err);
-            }
-        } else {
-            alert("Przeglądarka nie wspiera Web Share API dla plików.");
-        }
-    }
-
-    // --- 4. KAMERA I OCR ---
-    let stream = null;
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const statusDiv = document.getElementById('status');
-    const camWrapper = document.getElementById('camera-wrapper');
-    const btnScan = document.getElementById('btn-scan');
-    const btnToggle = document.getElementById('btn-cam-toggle');
-
-    async function toggleCamera() {
-        if (stream) {
-            stopCamera();
-        } else {
-            try {
-                statusDiv.innerText = "Uruchamianie kamery...";
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                video.srcObject = stream;
-                camWrapper.style.display = 'block';
-                btnScan.style.display = 'block';
-                btnToggle.innerText = "❌ Zamknij Kamerę";
-                statusDiv.innerText = "Nakieruj na 12/13 cyfr i kliknij Odczytaj.";
-            } catch (err) { alert("Błąd kamery: " + err.message); }
-        }
-    }
-
-    function stopCamera() {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        stream = null;
-        camWrapper.style.display = 'none';
-        btnScan.style.display = 'none';
-        btnToggle.innerText = "📷 Włącz Skaner (OCR)";
-    }
-
-    async function captureAndRead() {
-        if (!stream) return;
-        statusDiv.innerText = "🧠 Analizowanie obrazu...";
-        statusDiv.style.color = "orange";
-        
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-
-        try {
-            // Wymuszamy na silniku OCR szukanie wyłącznie cyfr
-            const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: '0123456789' });
-            
-            // Regex wyciągający wyłącznie ciąg 12 lub 13 cyfr z odczytanego tekstu
-            const match = text.replace(/\D/g, '').match(/\d{12,13}/);
-            
-            if (match) {
-                const inputEl = document.getElementById('ean-input');
-                inputEl.value = match[0];
-                stopCamera();
-                validateEAN(inputEl); // Puszczenie przez walidator (auto-generowanie)
-            } else {
-                statusDiv.innerText = "⚠️ Nie znaleziono kodu EAN na zdjęciu.";
-                statusDiv.style.color = "red";
-            }
-        } catch (e) { 
-            statusDiv.innerText = "Błąd OCR: " + e.message; 
-            statusDiv.style.color = "red";
-        }
-    }
-</script>
+  <script src="app.js"></script>
 
 </body>
 </html>
